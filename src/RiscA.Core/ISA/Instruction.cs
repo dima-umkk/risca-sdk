@@ -30,6 +30,34 @@ namespace RiscA.Core.ISA
         MovL = 1,
     }
 
+    public enum LdStFunc : byte
+    {
+        LD = 0,
+        ST = 1,
+    }
+
+    public enum LdStBWFunc : byte
+    {
+        B = 0,
+        W = 1,
+    }
+
+    public enum BranchFunc : byte
+    {
+        BEQZ = 0,
+        BNEZ = 1,
+        BGTZ = 2,
+        BLTZ = 3,
+    }
+
+    public enum CallJmpRetFunc : byte
+    {
+        CALL_IMM = 0,
+        CALL_REG = 1,
+        RET = 2,
+        JR = 3,
+    }
+
     public enum OpCode
     {
         ALU_REG_REG = 0,
@@ -97,11 +125,26 @@ namespace RiscA.Core.ISA
                 OpCode.ALU_REG_REG => $"{(ALUFunc)Func3} R{Rd}, R{Rs} (0x{_raw:X4})",
                 OpCode.ALU_REG_IMM => $"{(ALUImmFunc)Func2} R{Rd}, {Imm7} (0x{_raw:X4})",
                 OpCode.REG_IMM => $"{(RegImmFunc)Func1} R{Rd}, {Imm8} (0x{_raw:X4})",
-                OpCode.ST_LD => throw new NotImplementedException(),
-                OpCode.BRANCH => throw new NotImplementedException(),
-                OpCode.LDI => throw new NotImplementedException(),
-                OpCode.CALL_JMP_RET => throw new NotImplementedException(),
-                OpCode.INT_RETI => throw new NotImplementedException(),
+                OpCode.ST_LD => $"{(LdStFunc)Func21}{(LdStBWFunc)Func22} R{Rd}, [R{Rs}+{Imm3}] (0x{_raw:X4})",
+                OpCode.BRANCH => $"{(BranchFunc)Func2} R{Rd}, {Imm7} (0x{_raw:X4})",
+                OpCode.LDI => $"LDI R{Rd}, [{Imm9}] (0x{_raw:X4})",
+                OpCode.CALL_JMP_RET => (CallJmpRetFunc)Func2 switch
+                {
+                    CallJmpRetFunc.CALL_IMM => $"CALL {(Imm7<<4) | Rd} (0x{_raw:X4})",
+                    CallJmpRetFunc.CALL_REG => $"CALL R{Rd} (0x{_raw:X4})",
+                    CallJmpRetFunc.RET when Rd == 14 => $"RET (0x{_raw:X4})",
+                    CallJmpRetFunc.RET when Rd != 14 => $"JMP R{Rd} (0x{_raw:X4})",
+                    CallJmpRetFunc.JR => $"JR {(Imm7 << 4) | Rd} (0x{_raw:X4})",
+                    _ => throw new NotImplementedException(),
+                },
+                OpCode.INT_RETI => Func2 switch
+                {
+                    0 => $"INT R{Rd} (0x{_raw:X4})",
+                    1 => $"RETI (0x{_raw:X4})",
+                    2 => $"MOV R{Rd}, EPC (0x{_raw:X4})",
+                    3 => $"MOV EPC, R{Rd} (0x{_raw:X4})",
+                    _ => throw new NotImplementedException(),
+                },
                 _ => throw new NotImplementedException(),
             };
         }

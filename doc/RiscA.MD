@@ -119,10 +119,10 @@ Imm(7) | func2(2) | Rd(4) | opcode(3)
 
 	func2:
 
-	0) CALL Imm(7), Rd; PC=PC+signed(Imm(7))<<2; Function aligned by 4 bytes; Rd=PC+2 return address; For default R14
-	1) CALL Rd		  ; PC=Rd. R14=PC+2
-	2) RET  Rd        ; PC=Rd. Also used as JMP Rd; For default used R14
-	3) JR   Imm(7)    ; PC=PC+signed(Imm(7))<<1; in instructions
+	0) CALL (Imm(7) | Rd(4)) 11 bit ; PC=PC+signed((Imm(7) | Rd(4)))<<2; Function aligned by 4 bytes; R14=PC+2 return address
+	1) CALL Rd         ; PC=Rd. R14=PC+2 return address
+	2) RET  Rd         ; PC=Rd. Also used as JMP Rd; For default used R14
+	3) JR   (Imm(7) | Rd(4)) 11 bit ; PC=PC+signed(Imm(7) | Rd(4))<<1; in instructions
 
 ### INT\RETI\STS:
 Opcode: 7

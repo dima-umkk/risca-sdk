@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/doc/">
+    <File Path="doc/README.md" />
     <File Path="doc/RiscA.MD" />
   </Folder>
   <Folder Name="/Solution Items/">
@@ -8,5 +9,6 @@
   <Folder Name="/src/">
     <Project Path="src/RiscA.Assembler/RiscA.Assembler.csproj" />
     <Project Path="src/RiscA.Core/RiscA.Core.csproj" />
+    <Project Path="tests/RiscA.Core.Tests/RiscA.Core.Tests.csproj" />
   </Folder>
 </Solution>
