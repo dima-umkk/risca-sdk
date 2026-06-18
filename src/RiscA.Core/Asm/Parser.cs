@@ -14,10 +14,20 @@ namespace RiscA.Core.Asm
         List<AsmInstruction> asmInstructions = new List<AsmInstruction>();
         Dictionary<string, AsmInstruction> labelToInstr = new Dictionary<string, AsmInstruction>();
 
+        List<(List<TK>, Func<List<TK>, int, List<TK>>)> rules =
+            [
+                ([TK.MOV, TK.REG], new Func<List<TK>, int, List<TK>>(parseAlu))
+            ];
+
         public void ParseLine(string filename, string line, int linePos)
         {
             List<Token> tokens = Tokenizer.tokenizeLine(filename, line, linePos);
 
+        }
+
+        List<TK> parseAlu(List<TK> tokens, int pos)
+        {
+            return tokens;
         }
     }
 }
