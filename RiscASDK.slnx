@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/doc/">
+    <File Path="doc/RiscA.MD" />
+  </Folder>
+  <Folder Name="/Solution Items/">
+    <File Path="AGENTS.md" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/RiscA.Assembler/RiscA.Assembler.csproj" />
+    <Project Path="src/RiscA.Core/RiscA.Core.csproj" />
+  </Folder>
+</Solution>
