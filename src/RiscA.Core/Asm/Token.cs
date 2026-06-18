@@ -82,7 +82,7 @@ namespace RiscA.Core.Asm
             {"add", TK.ADD},
             {"sub", TK.SUB},
             {"and", TK.AND},
-            {"or ", TK.OR},
+            {"or", TK.OR},
             {"xor", TK.XOR},
             {"not", TK.NOT},
             {"mul", TK.MUL},
