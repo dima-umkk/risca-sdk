@@ -153,7 +153,7 @@ namespace RiscA.Core.Tests.Asm
         [InlineData("bnez r2, loop",    new int[] { 1, 2}, "loop")]
         [InlineData("bgtz r3, main33n", new int[] { 2, 3}, "main33n")]
         [InlineData("bltz r4, asd234",  new int[] { 3, 4}, "asd234")]
-        public void ParserBranchLabels(string line, int[] result, string label)
+        public void ParserBranchLabelsTest(string line, int[] result, string label)
         {
             Parser p = new Parser();
             var pi = p.ParseLine("test.rasm", line, 1);
@@ -163,6 +163,16 @@ namespace RiscA.Core.Tests.Asm
             pi.Instructions[0].Rd.Should().Be(result[1]);
             pi.Instructions[0].Imm7.Should().Be(0);
             pi.RefLabel.Should().Be(label);
+        }
+
+        [Theory]
+        [InlineData("beqz r1, -35*2", "-64 .. 63")]
+        [InlineData("bnez r2, 256/2/2", "-64 .. 63")]
+        public void ParserBranchExceptionsTest(string line, string exstr)
+        {
+            Parser p = new Parser();
+            Action act = () => p.ParseLine("test.rasm", line, 1);
+            act.Should().Throw<Exception>().WithMessage($"*{exstr}*");
         }
 
         [Theory]
