@@ -206,7 +206,7 @@ namespace RiscA.Core.Asm
                     continue;
                 }
                 //no rules found - error
-                throw new Exception($"Syntax error {filename}: {linenumber}:{pos}");
+                throw new Exception($"Syntax error '{line[pos]}' {filename}: {linenumber}:{pos}");
             }
 
             return tokens;

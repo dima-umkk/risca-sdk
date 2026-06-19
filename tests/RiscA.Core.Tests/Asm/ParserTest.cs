@@ -1,4 +1,5 @@
 ﻿using RiscA.Core.Asm;
+using RiscA.Core.ISA;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -16,14 +17,119 @@ namespace RiscA.Core.Tests.Asm
         [InlineData("xor r6, r11", new int[] { 5, 6, 11 })]
         [InlineData("not r7, r10", new int[] { 6, 7, 10 })]
         [InlineData("mul r8, r9", new int[] { 7, 8, 9 })]
-        public void ParserLineTest(string line, int[] result)
+        public void ParserAluRegRegTest(string line, int[] result)
         {
             Parser p = new Parser();
-            p.ParseLine("test.rasm", line, 1);
-            p.AsmInstructions.Should().HaveCount(1);
-            p.AsmInstructions[0].Instruction.Func3.Should().Be(result[0]);
-            p.AsmInstructions[0].Instruction.Rd.Should().Be(result[1]);
-            p.AsmInstructions[0].Instruction.Rs.Should().Be(result[2]);
+            var pi = p.ParseLine("test.rasm", line, 1);
+            pi.Instructions.Should().HaveCount(1);
+            pi.Instructions[0].OpCode.Should().Be(OpCode.ALU_REG_REG);
+            pi.Instructions[0].Func3.Should().Be(result[0]);
+            pi.Instructions[0].Rd.Should().Be(result[1]);
+            pi.Instructions[0].Rs.Should().Be(result[2]);
+        }
+
+        [Theory]
+        [InlineData("shl r1, 31",  new int[] { 0, 1, 31 })]
+        [InlineData("shr r2, 2",   new int[] { 1, 2, 2 })]
+        [InlineData("add r3, 127", new int[] { 2, 3, 127 })]
+        [InlineData("sub r4, 3",   new int[] { 3, 4, 3 })]
+        public void ParserAluRegImmTest(string line, int[] result)
+        {
+            Parser p = new Parser();
+            var pi = p.ParseLine("test.rasm", line, 1);
+            pi.Instructions.Should().HaveCount(1);
+            pi.Instructions[0].OpCode.Should().Be(OpCode.ALU_REG_IMM);
+            pi.Instructions[0].Func2.Should().Be(result[0]);
+            pi.Instructions[0].Rd.Should().Be(result[1]);
+            pi.Instructions[0].Imm7.Should().Be(result[2]);
+        }
+
+        [Theory]
+        [InlineData("shl r1, 33", "0 .. 32")]
+        [InlineData("shr r2, 222", "0 .. 32")]
+        [InlineData("add r3, 128", "0 .. 127")]
+        [InlineData("sub r4, 300", "0 .. 127")]
+        public void ParserAluRegImmExceptionTest(string line, string exstr)
+        {
+            Parser p = new Parser();
+            Action act = () => p.ParseLine("test.rasm", line, 1);
+            act.Should().Throw<Exception>().WithMessage($"*{exstr}*");
+        }
+
+        [Theory]
+        [InlineData("movi r1, 31", new int[] { 0, 1, 31 })]
+        [InlineData("movl r12, 2", new int[] { 1, 12, 2 })]
+        public void ParserRegImmTest(string line, int[] result)
+        {
+            Parser p = new Parser();
+            var pi = p.ParseLine("test.rasm", line, 1);
+            pi.Instructions.Should().HaveCount(1);
+            pi.Instructions[0].OpCode.Should().Be(OpCode.REG_IMM);
+            pi.Instructions[0].Func1.Should().Be(result[0]);
+            pi.Instructions[0].Rd.Should().Be(result[1]);
+            pi.Instructions[0].Imm8.Should().Be(result[2]);
+        }
+
+        [Theory]
+        [InlineData("movi r1, 256", "<= 255")]
+        [InlineData("movl r12, 300", "<= 255")]
+        public void ParserRegImmExceptionTest(string line, string exstr)
+        {
+            Parser p = new Parser();
+            Action act = () => p.ParseLine("test.rasm", line, 1);
+            act.Should().Throw<Exception>().WithMessage($"*{exstr}*");
+        }
+
+        [Theory]
+        [InlineData("ldb r1,  [r2  + 3]", new int[] { 0, 1,  2,  3 })]
+        [InlineData("ldw r12, [r14 + 7]", new int[] { 1, 12, 14, 7 })]
+        public void ParserLDTest(string line, int[] result)
+        {
+            Parser p = new Parser();
+            var pi = p.ParseLine("test.rasm", line, 1);
+            pi.Instructions.Should().HaveCount(1);
+            pi.Instructions[0].OpCode.Should().Be(OpCode.ST_LD);
+            pi.Instructions[0].Func21.Should().Be(0);
+            pi.Instructions[0].Func22.Should().Be(result[0]);
+            pi.Instructions[0].Rd.Should().Be(result[1]);
+            pi.Instructions[0].Rs.Should().Be(result[2]);
+            pi.Instructions[0].Imm3.Should().Be(result[3]);
+        }
+
+        [Theory]
+        [InlineData("ldb r1,  [r2  + 8]", "0 .. 7")]
+        [InlineData("ldw r12, [r14 + 300]", "0 .. 7")]
+        public void ParserLDExceptionTest(string line, string exstr)
+        {
+            Parser p = new Parser();
+            Action act = () => p.ParseLine("test.rasm", line, 1);
+            act.Should().Throw<Exception>().WithMessage($"*{exstr}*");
+        }
+
+        [Theory]
+        [InlineData("stb [r2  + 3], r1",  new int[] { 0, 1, 2, 3 })]
+        [InlineData("stw [r14 + 7], r12", new int[] { 1, 12, 14, 7 })]
+        public void ParserSTTest(string line, int[] result)
+        {
+            Parser p = new Parser();
+            var pi = p.ParseLine("test.rasm", line, 1);
+            pi.Instructions.Should().HaveCount(1);
+            pi.Instructions[0].OpCode.Should().Be(OpCode.ST_LD);
+            pi.Instructions[0].Func21.Should().Be(1);
+            pi.Instructions[0].Func22.Should().Be(result[0]);
+            pi.Instructions[0].Rd.Should().Be(result[1]);
+            pi.Instructions[0].Rs.Should().Be(result[2]);
+            pi.Instructions[0].Imm3.Should().Be(result[3]);
+        }
+
+        [Theory]
+        [InlineData("stb [r2  + 8], r1", "0 .. 7")]
+        [InlineData("stw [r14 + 999], r12", "0 .. 7")]
+        public void ParserSTExceptionTest(string line, string exstr)
+        {
+            Parser p = new Parser();
+            Action act = () => p.ParseLine("test.rasm", line, 1);
+            act.Should().Throw<Exception>().WithMessage($"*{exstr}*");
         }
     }
 }

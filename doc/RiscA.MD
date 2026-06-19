@@ -96,10 +96,10 @@ Imm(7) | func2(2) | Rd(4) | opcode(3)
 
 	func2:
 
-	0) BEQZ Rd, Imm; Rd == 0 ? PC = PC + signed(Imm)<<1; in instructions
-	1) BNEZ Rd, Imm; Rd != 0 ? PC = PC + signed(Imm)<<1; in instructions
-	2) BGTZ Rd, Imm; Rd >  0 ? PC = PC + signed(Imm)<<1; in instructions
-	3) BLTZ Rd, Imm; Rd <  0 ? PC = PC + signed(Imm)<<1; in instructions
+	0) BEQZ Rd, Imm(7); Rd == 0 ? PC = PC + signed(Imm)<<1; in instructions
+	1) BNEZ Rd, Imm(7); Rd != 0 ? PC = PC + signed(Imm)<<1; in instructions
+	2) BGTZ Rd, Imm(7); Rd >  0 ? PC = PC + signed(Imm)<<1; in instructions
+	3) BLTZ Rd, Imm(7); Rd <  0 ? PC = PC + signed(Imm)<<1; in instructions
 
 ### LDI:
 Opcode: 5
