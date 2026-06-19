@@ -14,8 +14,12 @@ namespace RiscA.Core.Asm
         COLON,       // :
         LSBRACKET,   // [
         RSBRACKET,   // ]
+        LPAREN,      // (
+        RPAREN,      // )
         PLUS,        // +
         MINUS,       // -
+        ASTER,       // *
+        SLASH,       // /
         HEX,         // 0x
 
         //literal tokens
@@ -187,6 +191,18 @@ namespace RiscA.Core.Asm
                     pos++;
                     continue;
                 }
+                else if (line[pos] == '(')
+                {
+                    tokens.Add(new Token(TK.LPAREN, "(", pos));
+                    pos++;
+                    continue;
+                }
+                else if (line[pos] == ')')
+                {
+                    tokens.Add(new Token(TK.RPAREN, ")", pos));
+                    pos++;
+                    continue;
+                }
                 else if (line[pos] == '+')
                 {
                     tokens.Add(new Token(TK.PLUS, "+", pos));
@@ -196,6 +212,18 @@ namespace RiscA.Core.Asm
                 else if (line[pos] == '-')
                 {
                     tokens.Add(new Token(TK.MINUS, "-", pos));
+                    pos++;
+                    continue;
+                }
+                else if (line[pos] == '*')
+                {
+                    tokens.Add(new Token(TK.ASTER, "*", pos));
+                    pos++;
+                    continue;
+                }
+                else if (line[pos] == '/')
+                {
+                    tokens.Add(new Token(TK.SLASH, "/", pos));
                     pos++;
                     continue;
                 }

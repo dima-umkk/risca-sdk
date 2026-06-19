@@ -19,11 +19,18 @@ namespace RiscA.Core.Asm
     {
         static List<(List<TK[]>, Func<ParsedInstruction, List<TK[]>, List<Token>, int, List<Token>>)> rules =
             [
+                //Expressions
+                ([ [TK.NUMBER], [TK.SLASH,TK.ASTER,TK.MINUS,TK.PLUS], [TK.NUMBER] ], ExpMath),
+                ([ [TK.MINUS], [TK.NUMBER] ], ExpNegative),
+                ([ [TK.LPAREN], [TK.NUMBER], [TK.RPAREN] ], ExpParen),
+
+                //Instructions
                 ([ [TK.MOV,TK.ADD,TK.SUB,TK.AND,TK.OR,TK.XOR,TK.NOT,TK.MUL], [TK.REG], [TK.COMMA], [TK.REG] ], ParseAlu),
                 ([ [TK.SHL, TK.SHR, TK.ADD, TK.SUB], [TK.REG], [TK.COMMA], [TK.NUMBER] ], ParseAluImm),
                 ([ [TK.MOVI, TK.MOVL], [TK.REG], [TK.COMMA], [TK.NUMBER] ], ParseRegImm),
                 ([ [TK.LDB, TK.LDW], [TK.REG], [TK.COMMA], [TK.LSBRACKET], [TK.REG], [TK.PLUS], [TK.NUMBER], [TK.RSBRACKET] ], ParseLD),
                 ([ [TK.STB, TK.STW], [TK.LSBRACKET], [TK.REG], [TK.PLUS], [TK.NUMBER], [TK.RSBRACKET], [TK.COMMA], [TK.REG] ], ParseST),
+                ([ [TK.BEQZ, TK.BNEZ, TK.BGTZ, TK.BLTZ,], [TK.REG], [TK.COMMA], [TK.NUMBER, TK.LITERAL] ], ParseBranch),
             ];
 
         public ParsedInstruction ParseLine(string filename, string line, int linePos)
@@ -31,9 +38,9 @@ namespace RiscA.Core.Asm
             List<Token> tokens = Tokenizer.tokenizeLine(filename, line, linePos);
             ParsedInstruction parsedInstruction = new ParsedInstruction();
             int pos = 0;
-            bool matched = false;
             while (pos < tokens.Count)
             {
+                bool matched = false;
                 foreach (var rule in rules)
                 {
                     var (pattern, handler) = rule;
@@ -61,7 +68,7 @@ namespace RiscA.Core.Asm
                 if (!matched) pos++;
             }
 
-            if (!matched)
+            if (tokens.Count > 0) //TODO: find most matched rule to clarify error
                 throw new Exception($"Parse error: {filename}: line: {linePos}");
 
             return parsedInstruction;
@@ -140,5 +147,59 @@ namespace RiscA.Core.Asm
             return tokens;
         }
 
+        static List<Token> ParseBranch(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
+        {
+            var imm7 = tokens[pos + 3].TokenType == TK.NUMBER ? tokens[pos + 3].intValue : 0;
+            if (tokens[pos + 3].TokenType == TK.LITERAL)
+                parsedInstruction.RefLabel = tokens[pos + 3].TokenString;
+            var i = new Instruction(0)
+                .withOpCode(OpCode.BRANCH)
+                .withFunc2(rule[0].IndexOf(tokens[pos].TokenType))
+                .withRd(tokens[pos + 1].intValue)
+                .withImm7(imm7);
+
+            if (imm7 < -64 || imm7 > 63)
+                throw new Exception($"Number should be -64 .. 63 for '{tokens[pos].TokenString} {tokens[pos + 1].TokenString}, {tokens[pos + 3].TokenString}'");
+
+            parsedInstruction.Instructions.Add(i);
+            tokens.RemoveRange(pos, 4);
+            return tokens;
+        }
+
+        static List<Token> ExpMath(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
+        {
+            int a = tokens[pos + 1].intValue;
+            int b = tokens[pos + 3].intValue;
+
+            int c = tokens[pos + 2].TokenType switch
+            {
+                TK.PLUS => a + b,
+                TK.MINUS => a - b,
+                TK.ASTER => a * b,
+                TK.SLASH => a / b,
+                _ => throw new Exception($"Unexpected math operation '{tokens[pos + 1].TokenString}' in '{tokens[pos].TokenString} {tokens[pos + 1].TokenString} {tokens[pos + 2].TokenString}'")
+            };
+            tokens.RemoveRange(pos, 3);
+            tokens.Insert(pos, new Token(TK.NUMBER, c.ToString(), pos, c));
+            return tokens;
+        }
+
+        static List<Token> ExpParen(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
+        {
+            Token number = tokens[pos + 1];
+            tokens.RemoveRange(pos, 3);
+            tokens.Insert(pos, number);
+            return tokens;
+        }
+
+        static List<Token> ExpNegative(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
+        {
+            Token number = tokens[pos + 1];
+            number.intValue = 0 - number.intValue;
+            number.TokenString = number.intValue.ToString();
+            tokens.RemoveRange(pos, 2);
+            tokens.Insert(pos, number);
+            return tokens;
+        }
     }
 }

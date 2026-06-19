@@ -131,5 +131,51 @@ namespace RiscA.Core.Tests.Asm
             Action act = () => p.ParseLine("test.rasm", line, 1);
             act.Should().Throw<Exception>().WithMessage($"*{exstr}*");
         }
+
+        [Theory]
+        [InlineData("beqz r1, 31",  new int[] { 0, 1, 31 })]
+        [InlineData("bnez r2, 2",   new int[] { 1, 2, 2 })]
+        [InlineData("bgtz r3, 63", new int[] { 2, 3, 63 })]
+        [InlineData("bltz r4, 3",   new int[] { 3, 4, 3 })]
+        public void ParserBranchTest(string line, int[] result)
+        {
+            Parser p = new Parser();
+            var pi = p.ParseLine("test.rasm", line, 1);
+            pi.Instructions.Should().HaveCount(1);
+            pi.Instructions[0].OpCode.Should().Be(OpCode.BRANCH);
+            pi.Instructions[0].Func2.Should().Be(result[0]);
+            pi.Instructions[0].Rd.Should().Be(result[1]);
+            pi.Instructions[0].Imm7.Should().Be(result[2]);
+        }
+
+        [Theory]
+        [InlineData("beqz r1, label1",  new int[] { 0, 1}, "label1")]
+        [InlineData("bnez r2, loop",    new int[] { 1, 2}, "loop")]
+        [InlineData("bgtz r3, main33n", new int[] { 2, 3}, "main33n")]
+        [InlineData("bltz r4, asd234",  new int[] { 3, 4}, "asd234")]
+        public void ParserBranchLabels(string line, int[] result, string label)
+        {
+            Parser p = new Parser();
+            var pi = p.ParseLine("test.rasm", line, 1);
+            pi.Instructions.Should().HaveCount(1);
+            pi.Instructions[0].OpCode.Should().Be(OpCode.BRANCH);
+            pi.Instructions[0].Func2.Should().Be(result[0]);
+            pi.Instructions[0].Rd.Should().Be(result[1]);
+            pi.Instructions[0].Imm7.Should().Be(0);
+            pi.RefLabel.Should().Be(label);
+        }
+
+        [Theory]
+        [InlineData("add r3, (-1)*-127", new int[] { 2, 3, -127 })]
+        public void ParseExpressionTest(string line, int[] result)
+        {
+            Parser p = new Parser();
+            var pi = p.ParseLine("test.rasm", line, 1);
+            pi.Instructions.Should().HaveCount(1);
+            pi.Instructions[0].OpCode.Should().Be(OpCode.ALU_REG_IMM);
+            pi.Instructions[0].Func2.Should().Be(result[0]);
+            pi.Instructions[0].Rd.Should().Be(result[1]);
+            pi.Instructions[0].Imm7.Should().Be(result[2]);
+        }
     }
 }
