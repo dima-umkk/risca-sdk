@@ -22,6 +22,8 @@ namespace RiscA.Core.Asm
         SLASH,       // /
         HEX,         // 0x
 
+        EOL,         //End of line
+
         //literal tokens
         REG,
         MOV,
@@ -237,6 +239,7 @@ namespace RiscA.Core.Asm
                 throw new Exception($"Syntax error '{line[pos]}' {filename}: {linenumber}:{pos}");
             }
 
+            tokens.Add(new Token(TK.EOL, "{EOL}", pos));
             return tokens;
         }
 

@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace RiscA.Core.Asm
 {
@@ -25,12 +26,12 @@ namespace RiscA.Core.Asm
                 ([ [TK.LPAREN], [TK.NUMBER], [TK.RPAREN] ], ExpParen),
 
                 //Instructions
-                ([ [TK.MOV,TK.ADD,TK.SUB,TK.AND,TK.OR,TK.XOR,TK.NOT,TK.MUL], [TK.REG], [TK.COMMA], [TK.REG] ], ParseAlu),
-                ([ [TK.SHL, TK.SHR, TK.ADD, TK.SUB], [TK.REG], [TK.COMMA], [TK.NUMBER] ], ParseAluImm),
-                ([ [TK.MOVI, TK.MOVL], [TK.REG], [TK.COMMA], [TK.NUMBER] ], ParseRegImm),
-                ([ [TK.LDB, TK.LDW], [TK.REG], [TK.COMMA], [TK.LSBRACKET], [TK.REG], [TK.PLUS], [TK.NUMBER], [TK.RSBRACKET] ], ParseLD),
-                ([ [TK.STB, TK.STW], [TK.LSBRACKET], [TK.REG], [TK.PLUS], [TK.NUMBER], [TK.RSBRACKET], [TK.COMMA], [TK.REG] ], ParseST),
-                ([ [TK.BEQZ, TK.BNEZ, TK.BGTZ, TK.BLTZ,], [TK.REG], [TK.COMMA], [TK.NUMBER, TK.LITERAL] ], ParseBranch),
+                ([ [TK.MOV,TK.ADD,TK.SUB,TK.AND,TK.OR,TK.XOR,TK.NOT,TK.MUL], [TK.REG], [TK.COMMA], [TK.REG], [TK.EOL] ], ParseAlu),
+                ([ [TK.SHL, TK.SHR, TK.ADD, TK.SUB], [TK.REG], [TK.COMMA], [TK.NUMBER], [TK.EOL] ], ParseAluImm),
+                ([ [TK.MOVI, TK.MOVL], [TK.REG], [TK.COMMA], [TK.NUMBER], [TK.EOL] ], ParseRegImm),
+                ([ [TK.LDB, TK.LDW], [TK.REG], [TK.COMMA], [TK.LSBRACKET], [TK.REG], [TK.PLUS], [TK.NUMBER], [TK.RSBRACKET], [TK.EOL] ], ParseLD),
+                ([ [TK.STB, TK.STW], [TK.LSBRACKET], [TK.REG], [TK.PLUS], [TK.NUMBER], [TK.RSBRACKET], [TK.COMMA], [TK.REG], [TK.EOL] ], ParseST),
+                ([ [TK.BEQZ, TK.BNEZ, TK.BGTZ, TK.BLTZ,], [TK.REG], [TK.COMMA], [TK.NUMBER, TK.LITERAL], [TK.EOL] ], ParseBranch),
             ];
 
         public ParsedInstruction ParseLine(string filename, string line, int linePos)
@@ -38,40 +39,43 @@ namespace RiscA.Core.Asm
             List<Token> tokens = Tokenizer.tokenizeLine(filename, line, linePos);
             ParsedInstruction parsedInstruction = new ParsedInstruction();
             int pos = 0;
+            List<Token> stack = new List<Token>();
             while (pos < tokens.Count)
             {
-                bool matched = false;
-                foreach (var rule in rules)
-                {
-                    var (pattern, handler) = rule;
-                    if (tokens.Count - pos < pattern.Count) continue;
-
-                    bool ruleMatch = true;
-                    for (int i = 0; i < pattern.Count; i++)
-                    {
-                        if (Array.IndexOf(pattern[i], tokens[pos + i].TokenType) < 0)
-                        {
-                            ruleMatch = false;
-                            break;
-                        }
-                    }
-
-                    if (ruleMatch)
-                    {
-                        tokens = handler(parsedInstruction, pattern, tokens, pos);
-                        matched = true;
-                        pos = 0;
-                        break;
-                    }
-                }
-
-                if (!matched) pos++;
+                stack.Add(tokens[pos++]);
+                while (ProcessToken(stack, parsedInstruction))
+                    ;
             }
 
-            if (tokens.Count > 0) //TODO: find most matched rule to clarify error
+            if (stack.Count > 0) //TODO: find most matched rule to clarify error
                 throw new Exception($"Parse error: {filename}: line: {linePos}");
 
             return parsedInstruction;
+        }
+
+        private bool ProcessToken(List<Token> stack, ParsedInstruction pi)
+        {
+            foreach(var rule in rules)
+            {
+                var (pattern, handler) = rule;
+                if (pattern.Count > stack.Count)
+                    continue;
+                bool ruleMatch = true;
+                for (int i = 0; i < pattern.Count; i++)
+                {
+                    if (Array.IndexOf(pattern[i], stack[stack.Count - pattern.Count + i].TokenType) < 0)
+                    {
+                        ruleMatch = false;
+                        break;
+                    }
+                }
+                if (ruleMatch)
+                {
+                    stack = handler(pi, pattern, stack, stack.Count - pattern.Count);
+                    return true;
+                }
+            }
+            return false;
         }
 
         static List<Token> ParseAlu(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
@@ -82,7 +86,7 @@ namespace RiscA.Core.Asm
                 .withRd(tokens[pos + 1].intValue)
                 .withRs(tokens[pos + 3].intValue);
             parsedInstruction.Instructions.Add(i);
-            tokens.RemoveRange(pos, 4);
+            tokens.RemoveRange(pos, 5);
             return tokens;
         }
 
@@ -98,7 +102,7 @@ namespace RiscA.Core.Asm
             if ((i.Func2 == 2 || i.Func2 == 3) && (tokens[pos + 3].intValue < 0 || tokens[pos + 3].intValue > 127))
                 throw new Exception($"Number should be 0 .. 127 for {tokens[pos].TokenString} {tokens[pos + 1].TokenString}, {tokens[pos + 3].TokenString}");
             parsedInstruction.Instructions.Add(i);
-            tokens.RemoveRange(pos, 4);
+            tokens.RemoveRange(pos, 5);
             return tokens;
         }
 
@@ -112,7 +116,7 @@ namespace RiscA.Core.Asm
             if (tokens[pos + 3].intValue > 255)
                 throw new Exception($"Number should be <= 255 for {tokens[pos].TokenString} {tokens[pos + 1].TokenString}, {tokens[pos + 3].TokenString}");
             parsedInstruction.Instructions.Add(i);
-            tokens.RemoveRange(pos, 4);
+            tokens.RemoveRange(pos, 5);
             return tokens;
         }
         static List<Token> ParseLD(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
@@ -127,7 +131,7 @@ namespace RiscA.Core.Asm
             if (tokens[pos + 6].intValue < 0 || tokens[pos + 6].intValue > 7)
                 throw new Exception($"Number should be 0 .. 7 for '{tokens[pos].TokenString} {tokens[pos + 1].TokenString}, [{tokens[pos + 4].TokenString} + {tokens[pos + 6].intValue}]'");
             parsedInstruction.Instructions.Add(i);
-            tokens.RemoveRange(pos, 8);
+            tokens.RemoveRange(pos, 9);
             return tokens;
         }
 
@@ -143,7 +147,7 @@ namespace RiscA.Core.Asm
             if (tokens[pos + 4].intValue < 0 || tokens[pos + 4].intValue > 7)
                 throw new Exception($"Number should be 0 .. 7 for '{tokens[pos].TokenString} {tokens[pos + 1].TokenString}, [{tokens[pos + 4].TokenString} + {tokens[pos + 6].intValue}]'");
             parsedInstruction.Instructions.Add(i);
-            tokens.RemoveRange(pos, 8);
+            tokens.RemoveRange(pos, 9);
             return tokens;
         }
 
@@ -162,16 +166,16 @@ namespace RiscA.Core.Asm
                 throw new Exception($"Number should be -64 .. 63 for '{tokens[pos].TokenString} {tokens[pos + 1].TokenString}, {tokens[pos + 3].TokenString}'");
 
             parsedInstruction.Instructions.Add(i);
-            tokens.RemoveRange(pos, 4);
+            tokens.RemoveRange(pos, 5);
             return tokens;
         }
 
         static List<Token> ExpMath(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
         {
-            int a = tokens[pos + 1].intValue;
-            int b = tokens[pos + 3].intValue;
+            int a = tokens[pos + 0].intValue;
+            int b = tokens[pos + 2].intValue;
 
-            int c = tokens[pos + 2].TokenType switch
+            int c = tokens[pos + 1].TokenType switch
             {
                 TK.PLUS => a + b,
                 TK.MINUS => a - b,

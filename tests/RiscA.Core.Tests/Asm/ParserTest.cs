@@ -166,7 +166,7 @@ namespace RiscA.Core.Tests.Asm
         }
 
         [Theory]
-        [InlineData("add r3, (-1)*-127", new int[] { 2, 3, -127 })]
+        [InlineData("add r3, (-1)*-127", new int[] { 2, 3, 127 })]
         public void ParseExpressionTest(string line, int[] result)
         {
             Parser p = new Parser();
@@ -177,5 +177,17 @@ namespace RiscA.Core.Tests.Asm
             pi.Instructions[0].Rd.Should().Be(result[1]);
             pi.Instructions[0].Imm7.Should().Be(result[2]);
         }
+
+
+        [Theory]
+        [InlineData("add r3, (-1)*(32%3)", "%")]
+        [InlineData("add r3, (-1)*(256/2)", "-128")]
+        public void ParseExpressionExceptionTest(string line, string exstr)
+        {
+            Parser p = new Parser();
+            Action act = () => p.ParseLine("test.rasm", line, 1);
+            act.Should().Throw<Exception>().WithMessage($"*{exstr}*");
+        }
+
     }
 }
