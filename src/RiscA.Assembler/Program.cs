@@ -23,7 +23,7 @@ if(filename == null)
     return -1;
 }
 
-Assembler asm = new Assembler(0);
+Assembler asm = new(0);
 try
 {
     asm.Compile(filename);
