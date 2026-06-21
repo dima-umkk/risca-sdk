@@ -88,6 +88,7 @@ namespace RiscA.Core.ISA
         private static readonly (ushort, ushort) MSK_IMM9 =     (0b1111_1111_1000_0000, 7);
         private ushort Inv((ushort, ushort) mask) => (ushort)~mask.Item1;
         private ushort Get((ushort, ushort) mask) => (ushort)((_raw & mask.Item1)>>mask.Item2);
+        private int GetSigned((ushort, ushort) mask, int bits) => (Get(mask) << (32 - bits)) >> (32 - bits);
         private ushort Apply(int value, (ushort, ushort) mask) => (ushort)((_raw & Inv(mask)) | ((value<<mask.Item2) & mask.Item1));
 
         private readonly ushort _raw = raw;
@@ -103,8 +104,9 @@ namespace RiscA.Core.ISA
         public int Func3 => Get(MSK_FUNC3);
         public int Imm3 => Get(MSK_IMM3);
         public int Imm7 => Get(MSK_IMM7);
+        public int Imm7s => GetSigned(MSK_IMM7, 7);
         public int Imm8 => Get(MSK_IMM8);
-        public int Imm9 => Get(MSK_IMM9);
+        public int Imm9 => GetSigned(MSK_IMM9, 9);
         public Instruction withOpCode(OpCode opcode) => new(Apply((int)opcode, MSK_OPCODE));
         public Instruction withRd(int rd) => new(Apply(rd, MSK_RD));
         public Instruction withRs(int rs) => new(Apply(rs, MSK_RS));
@@ -167,36 +169,20 @@ namespace RiscA.Core.ISA
 
         public Instruction SetImm(int imm)
         {
-            switch (OpCode)
+            return OpCode switch
             {
-                case OpCode.ALU_REG_IMM:
-                    return this.withImm7(imm);
-
-                case OpCode.REG_IMM:
-                    return this.withImm8(imm);
-
-                case OpCode.ST_LD:
-                    return this.withImm3(imm);
-
-                case OpCode.BRANCH:
-                    return this.withImm7(imm);
-
-                case OpCode.LDI:
-                    return this.withImm9(imm);
-
-                case OpCode.CALL_JMP_RET:
-                    switch ((CallJmpRetFunc)Func2)
-                    {
-                        case CallJmpRetFunc.CALL_IMM:
-                        case CallJmpRetFunc.JR:
-                            return this.withRd(imm & 0b0000_1111).withImm7((imm >> 4) & 0b0111_1111);
-                        default:
-                            return this;
-                    }
-
-                default:
-                    return this;
-            }
+                OpCode.ALU_REG_IMM => this.withImm7(imm),
+                OpCode.REG_IMM => this.withImm8(imm),
+                OpCode.ST_LD => this.withImm3(imm),
+                OpCode.BRANCH => this.withImm7(imm),
+                OpCode.LDI => this.withImm9(imm),
+                OpCode.CALL_JMP_RET => (CallJmpRetFunc)Func2 switch
+                {
+                    CallJmpRetFunc.CALL_IMM or CallJmpRetFunc.JR => this.withRd(imm & 0b0000_1111).withImm7((imm >> 4) & 0b0111_1111),
+                    _ => this,
+                },
+                _ => this,
+            };
         }
 
         public override string ToString() 
@@ -207,15 +193,15 @@ namespace RiscA.Core.ISA
                 OpCode.ALU_REG_IMM => $"{(ALUImmFunc)Func2} R{Rd}, {Imm7} (0x{_raw:X4})",
                 OpCode.REG_IMM => $"{(RegImmFunc)Func1} R{Rd}, {Imm8} (0x{_raw:X4})",
                 OpCode.ST_LD => $"{(LdStFunc)Func21}{(LdStBWFunc)Func22} R{Rd}, [R{Rs}+{Imm3}] (0x{_raw:X4})",
-                OpCode.BRANCH => $"{(BranchFunc)Func2} R{Rd}, {Imm7} (0x{_raw:X4})",
+                OpCode.BRANCH => $"{(BranchFunc)Func2} R{Rd}, {Imm7s} (0x{_raw:X4})",
                 OpCode.LDI => $"LDI R{Rd}, [{Imm9}] (0x{_raw:X4})",
                 OpCode.CALL_JMP_RET => (CallJmpRetFunc)Func2 switch
                 {
-                    CallJmpRetFunc.CALL_IMM => $"CALL {(Imm7<<4) | Rd} (0x{_raw:X4})",
+                    CallJmpRetFunc.CALL_IMM => $"CALL {(Imm7s<<4) | Rd} (0x{_raw:X4})",
                     CallJmpRetFunc.CALL_REG => $"CALL R{Rd} (0x{_raw:X4})",
                     CallJmpRetFunc.RET when Rd == 14 => $"RET (0x{_raw:X4})",
                     CallJmpRetFunc.RET when Rd != 14 => $"JMP R{Rd} (0x{_raw:X4})",
-                    CallJmpRetFunc.JR => $"JR {(Imm7 << 4) | Rd} (0x{_raw:X4})",
+                    CallJmpRetFunc.JR => $"JR {(Imm7s << 4) | Rd} (0x{_raw:X4})",
                     _ => throw new NotImplementedException(),
                 },
                 OpCode.INT_RETI => Func2 switch
