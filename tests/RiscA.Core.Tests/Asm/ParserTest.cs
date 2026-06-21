@@ -19,8 +19,7 @@ namespace RiscA.Core.Tests.Asm
         [InlineData("mul r8, r9", new int[] { 7, 8, 9 })]
         public void ParserAluRegRegTest(string line, int[] result)
         {
-            Parser p = new Parser();
-            var pi = p.ParseLine(line);
+            var pi = Parser.ParseLine(line);
             pi.Instructions.Should().HaveCount(1);
             pi.Instructions[0].OpCode.Should().Be(OpCode.ALU_REG_REG);
             pi.Instructions[0].Func3.Should().Be(result[0]);
@@ -35,8 +34,7 @@ namespace RiscA.Core.Tests.Asm
         [InlineData("sub r4, 3",   new int[] { 3, 4, 3 })]
         public void ParserAluRegImmTest(string line, int[] result)
         {
-            Parser p = new Parser();
-            var pi = p.ParseLine(line);
+            var pi = Parser.ParseLine(line);
             pi.Instructions.Should().HaveCount(1);
             pi.Instructions[0].OpCode.Should().Be(OpCode.ALU_REG_IMM);
             pi.Instructions[0].Func2.Should().Be(result[0]);
@@ -51,8 +49,7 @@ namespace RiscA.Core.Tests.Asm
         [InlineData("sub r4, 0b11", new int[] { 3, 4, 3 })]
         public void ParserAluRegImmHexBinTest(string line, int[] result)
         {
-            Parser p = new Parser();
-            var pi = p.ParseLine(line);
+            var pi = Parser.ParseLine(line);
             pi.Instructions.Should().HaveCount(1);
             pi.Instructions[0].OpCode.Should().Be(OpCode.ALU_REG_IMM);
             pi.Instructions[0].Func2.Should().Be(result[0]);
@@ -67,8 +64,7 @@ namespace RiscA.Core.Tests.Asm
         [InlineData("sub r4, 300", "0 .. 127")]
         public void ParserAluRegImmExceptionTest(string line, string exstr)
         {
-            Parser p = new Parser();
-            Action act = () => p.ParseLine(line);
+            Action act = () => Parser.ParseLine(line);
             act.Should().Throw<Exception>().WithMessage($"*{exstr}*");
         }
 
@@ -77,8 +73,7 @@ namespace RiscA.Core.Tests.Asm
         [InlineData("movl r12, 2", new int[] { 1, 12, 2 })]
         public void ParserRegImmTest(string line, int[] result)
         {
-            Parser p = new Parser();
-            var pi = p.ParseLine(line);
+            var pi = Parser.ParseLine(line);
             pi.Instructions.Should().HaveCount(1);
             pi.Instructions[0].OpCode.Should().Be(OpCode.REG_IMM);
             pi.Instructions[0].Func1.Should().Be(result[0]);
@@ -91,8 +86,7 @@ namespace RiscA.Core.Tests.Asm
         [InlineData("movl r12, 300", "<= 255")]
         public void ParserRegImmExceptionTest(string line, string exstr)
         {
-            Parser p = new Parser();
-            Action act = () => p.ParseLine(line);
+            Action act = () => Parser.ParseLine(line);
             act.Should().Throw<Exception>().WithMessage($"*{exstr}*");
         }
 
@@ -101,8 +95,7 @@ namespace RiscA.Core.Tests.Asm
         [InlineData("ldw r12, [r14 + 7]", new int[] { 1, 12, 14, 7 })]
         public void ParserLDTest(string line, int[] result)
         {
-            Parser p = new Parser();
-            var pi = p.ParseLine(line);
+            var pi = Parser.ParseLine(line);
             pi.Instructions.Should().HaveCount(1);
             pi.Instructions[0].OpCode.Should().Be(OpCode.ST_LD);
             pi.Instructions[0].Func21.Should().Be(0);
@@ -117,8 +110,7 @@ namespace RiscA.Core.Tests.Asm
         [InlineData("ldw r12, [r14 + 300]", "0 .. 7")]
         public void ParserLDExceptionTest(string line, string exstr)
         {
-            Parser p = new Parser();
-            Action act = () => p.ParseLine(line);
+            Action act = () => Parser.ParseLine(line);
             act.Should().Throw<Exception>().WithMessage($"*{exstr}*");
         }
 
@@ -127,8 +119,7 @@ namespace RiscA.Core.Tests.Asm
         [InlineData("stw [r14 + 7], r12", new int[] { 1, 12, 14, 7 })]
         public void ParserSTTest(string line, int[] result)
         {
-            Parser p = new Parser();
-            var pi = p.ParseLine(line);
+            var pi = Parser.ParseLine(line);
             pi.Instructions.Should().HaveCount(1);
             pi.Instructions[0].OpCode.Should().Be(OpCode.ST_LD);
             pi.Instructions[0].Func21.Should().Be(1);
@@ -143,8 +134,7 @@ namespace RiscA.Core.Tests.Asm
         [InlineData("stw [r14 + 999], r12", "0 .. 7")]
         public void ParserSTExceptionTest(string line, string exstr)
         {
-            Parser p = new Parser();
-            Action act = () => p.ParseLine(line);
+            Action act = () => Parser.ParseLine(line);
             act.Should().Throw<Exception>().WithMessage($"*{exstr}*");
         }
 
@@ -155,8 +145,7 @@ namespace RiscA.Core.Tests.Asm
         [InlineData("bltz r4, 3",   new int[] { 3, 4, 3 })]
         public void ParserBranchTest(string line, int[] result)
         {
-            Parser p = new Parser();
-            var pi = p.ParseLine(line);
+            var pi = Parser.ParseLine(line);
             pi.Instructions.Should().HaveCount(1);
             pi.Instructions[0].OpCode.Should().Be(OpCode.BRANCH);
             pi.Instructions[0].Func2.Should().Be(result[0]);
@@ -171,8 +160,7 @@ namespace RiscA.Core.Tests.Asm
         [InlineData("bltz r4, asd234",  new int[] { 3, 4}, "asd234")]
         public void ParserBranchLabelsTest(string line, int[] result, string label)
         {
-            Parser p = new Parser();
-            var pi = p.ParseLine(line);
+            var pi = Parser.ParseLine(line);
             pi.Instructions.Should().HaveCount(1);
             pi.Instructions[0].OpCode.Should().Be(OpCode.BRANCH);
             pi.Instructions[0].Func2.Should().Be(result[0]);
@@ -186,8 +174,7 @@ namespace RiscA.Core.Tests.Asm
         [InlineData("bnez r2, 256/2/2", "-64 .. 63")]
         public void ParserBranchExceptionsTest(string line, string exstr)
         {
-            Parser p = new Parser();
-            Action act = () => p.ParseLine(line);
+            Action act = () => Parser.ParseLine(line);
             act.Should().Throw<Exception>().WithMessage($"*{exstr}*");
         }
 
@@ -213,8 +200,7 @@ namespace RiscA.Core.Tests.Asm
         [InlineData("add r3, 10/3",       new int[] { 2, 3, 3 })]
         public void ParseExpressionTest(string line, int[] result)
         {
-            Parser p = new Parser();
-            var pi = p.ParseLine(line);
+            var pi = Parser.ParseLine(line);
             pi.Instructions.Should().HaveCount(1);
             pi.Instructions[0].OpCode.Should().Be(OpCode.ALU_REG_IMM);
             pi.Instructions[0].Func2.Should().Be(result[0]);
@@ -233,8 +219,7 @@ namespace RiscA.Core.Tests.Asm
         [InlineData("ldi r5, -200-200-200", "-512 .. 511")]
         public void ParseExpressionExceptionTest(string line, string exstr)
         {
-            Parser p = new Parser();
-            Action act = () => p.ParseLine(line);
+            Action act = () => Parser.ParseLine(line);
             act.Should().Throw<Exception>().WithMessage($"*{exstr}*");
         }
 
@@ -245,8 +230,7 @@ namespace RiscA.Core.Tests.Asm
         [InlineData("beqz r1, (10+5)*2", new int[] { 0, 1, 30 })]
         public void ParseExpressionWithBranchTest(string line, int[] result)
         {
-            Parser p = new Parser();
-            var pi = p.ParseLine(line);
+            var pi = Parser.ParseLine(line);
             pi.Instructions.Should().HaveCount(1);
             pi.Instructions[0].OpCode.Should().Be(OpCode.BRANCH);
             pi.Instructions[0].Func2.Should().Be(result[0]);
@@ -260,8 +244,7 @@ namespace RiscA.Core.Tests.Asm
         [InlineData("movi r7, 5*30",    new int[] { 0, 7, 150 })]
         public void ParseExpressionWithRegImmTest(string line, int[] result)
         {
-            Parser p = new Parser();
-            var pi = p.ParseLine(line);
+            var pi = Parser.ParseLine(line);
             pi.Instructions.Should().HaveCount(1);
             pi.Instructions[0].OpCode.Should().Be(OpCode.REG_IMM);
             pi.Instructions[0].Func1.Should().Be(result[0]);
@@ -273,8 +256,7 @@ namespace RiscA.Core.Tests.Asm
         [InlineData("ldi r15, label1", new int[] { 15 }, "label1")]
         public void ParserLDILabelsTest(string line, int[] result, string label)
         {
-            Parser p = new Parser();
-            var pi = p.ParseLine(line);
+            var pi = Parser.ParseLine(line);
             pi.Instructions.Should().HaveCount(1);
             pi.Instructions[0].OpCode.Should().Be(OpCode.LDI);
             pi.Instructions[0].Rd.Should().Be(result[0]);
@@ -286,8 +268,7 @@ namespace RiscA.Core.Tests.Asm
         [InlineData("ldi r5, -5+511*(-1)", "-516")]
         public void ParseLDIExceptionTest(string line, string exstr)
         {
-            Parser p = new Parser();
-            Action act = () => p.ParseLine(line);
+            Action act = () => Parser.ParseLine(line);
             act.Should().Throw<Exception>().WithMessage($"*{exstr}*");
         }
 
@@ -301,8 +282,7 @@ namespace RiscA.Core.Tests.Asm
         [InlineData("jr -1",     new int[] { 3, 15, 127 })]
         public void ParserCallJrImmTest(string line, int[] result)
         {
-            Parser p = new Parser();
-            var pi = p.ParseLine(line);
+            var pi = Parser.ParseLine(line);
             pi.Instructions.Should().HaveCount(1);
             pi.Instructions[0].OpCode.Should().Be(OpCode.CALL_JMP_RET);
             pi.Instructions[0].Func2.Should().Be(result[0]);
@@ -315,8 +295,7 @@ namespace RiscA.Core.Tests.Asm
         [InlineData("jr loop",     new int[] { 3 }, "loop")]
         public void ParserCallJrLabelsTest(string line, int[] result, string label)
         {
-            Parser p = new Parser();
-            var pi = p.ParseLine(line);
+            var pi = Parser.ParseLine(line);
             pi.Instructions.Should().HaveCount(1);
             pi.Instructions[0].OpCode.Should().Be(OpCode.CALL_JMP_RET);
             pi.Instructions[0].Func2.Should().Be(result[0]);
@@ -332,8 +311,7 @@ namespace RiscA.Core.Tests.Asm
         [InlineData("jr 1024",    "-1024 .. 1023")]
         public void ParserCallJrExceptionTest(string line, string exstr)
         {
-            Parser p = new Parser();
-            Action act = () => p.ParseLine(line);
+            Action act = () => Parser.ParseLine(line);
             act.Should().Throw<Exception>().WithMessage($"*{exstr}*");
         }
 
@@ -344,8 +322,7 @@ namespace RiscA.Core.Tests.Asm
         [InlineData("call 8*2",  new int[] { 0, 0, 1 })]
         public void ParserCallJrExpressionTest(string line, int[] result)
         {
-            Parser p = new Parser();
-            var pi = p.ParseLine(line);
+            var pi = Parser.ParseLine(line);
             pi.Instructions.Should().HaveCount(1);
             pi.Instructions[0].OpCode.Should().Be(OpCode.CALL_JMP_RET);
             pi.Instructions[0].Func2.Should().Be(result[0]);
@@ -358,8 +335,7 @@ namespace RiscA.Core.Tests.Asm
         [InlineData("jmp r7",  new int[] { 2, 7 })]
         public void ParserCallJmpRegTest(string line, int[] result)
         {
-            Parser p = new Parser();
-            var pi = p.ParseLine(line);
+            var pi = Parser.ParseLine(line);
             pi.Instructions.Should().HaveCount(1);
             pi.Instructions[0].OpCode.Should().Be(OpCode.CALL_JMP_RET);
             pi.Instructions[0].Func2.Should().Be(result[0]);
@@ -370,8 +346,7 @@ namespace RiscA.Core.Tests.Asm
         [InlineData("int r3", new int[] { 0, 3 })]
         public void ParserIntRegTest(string line, int[] result)
         {
-            Parser p = new Parser();
-            var pi = p.ParseLine(line);
+            var pi = Parser.ParseLine(line);
             pi.Instructions.Should().HaveCount(1);
             pi.Instructions[0].OpCode.Should().Be(OpCode.INT_RETI);
             pi.Instructions[0].Func2.Should().Be(result[0]);
@@ -383,8 +358,7 @@ namespace RiscA.Core.Tests.Asm
         [InlineData("reti", new int[] { 1, 0 })]
         public void ParserRetRetiTest(string line, int[] result)
         {
-            Parser p = new Parser();
-            var pi = p.ParseLine(line);
+            var pi = Parser.ParseLine(line);
             pi.Instructions.Should().HaveCount(1);
             pi.Instructions[0].OpCode.Should().Be(result[0] == 1 ? OpCode.INT_RETI : OpCode.CALL_JMP_RET);
             pi.Instructions[0].Func2.Should().Be(result[0]);
@@ -396,8 +370,7 @@ namespace RiscA.Core.Tests.Asm
         [InlineData("mov epc, r7", new int[] { 3, 7 })]
         public void ParserEPCTest(string line, int[] result)
         {
-            Parser p = new Parser();
-            var pi = p.ParseLine(line);
+            var pi = Parser.ParseLine(line);
             pi.Instructions.Should().HaveCount(1);
             pi.Instructions[0].OpCode.Should().Be(OpCode.INT_RETI);
             pi.Instructions[0].Func2.Should().Be(result[0]);

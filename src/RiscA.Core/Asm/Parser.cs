@@ -46,7 +46,7 @@ namespace RiscA.Core.Asm
                 ([ [TK.EOL] ], Skip), //empty line
             ];
 
-        public ParsedInstruction ParseLine(string line)
+        public static ParsedInstruction ParseLine(string line)
         {
             List<Token> tokens = Tokenizer.tokenizeLine(line);
             ParsedInstruction parsedInstruction = new ParsedInstruction();
@@ -61,7 +61,7 @@ namespace RiscA.Core.Asm
             return parsedInstruction;
         }
 
-        private bool ProcessToken(List<Token> stack, ParsedInstruction pi)
+        private static bool ProcessToken(List<Token> stack, ParsedInstruction pi)
         {
             foreach(var rule in rules)
             {

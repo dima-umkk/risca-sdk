@@ -118,6 +118,11 @@ namespace RiscA.Core.ISA
         public Instruction withImm8(int imm8) => new(Apply(imm8, MSK_IMM8));
         public Instruction withImm9(int imm9) => new(Apply(imm9, MSK_IMM9));
 
+        public void checkImmLimits(int imm, OpCode opcode)
+        {
+            //TODO: implement
+        }
+
         public override string ToString() 
         {
             return OpCode switch

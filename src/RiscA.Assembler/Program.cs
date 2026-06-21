@@ -25,12 +25,11 @@ if(filename == null || lines == null)
     return -1;
 }
 
-Parser parser = new Parser();
 for(int i=0; i<lines.Length; i++)
 {
     try
     {
-        ParsedInstruction pi = parser.ParseLine(lines[i]);
+        ParsedInstruction pi = Parser.ParseLine(lines[i]);
         if (Verbose.AssemblerInstructions)
         {
             Console.WriteLine($">{lines[i]}");
