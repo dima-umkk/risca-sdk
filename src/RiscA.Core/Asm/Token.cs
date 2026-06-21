@@ -111,6 +111,7 @@ namespace RiscA.Core.Asm
             {"jmp", TK.JMP },
             {"jr", TK.JR },
 
+            {"int", TK.INT },
             {"reti", TK.RETI },
             {"epc", TK.EPC },
         };

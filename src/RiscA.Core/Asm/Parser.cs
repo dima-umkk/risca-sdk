@@ -36,6 +36,11 @@ namespace RiscA.Core.Asm
                 ([ [TK.STB, TK.STW], [TK.LSBRACKET], [TK.REG], [TK.PLUS], [TK.NUMBER], [TK.RSBRACKET], [TK.COMMA], [TK.REG], [TK.EOL] ], ParseST),
                 ([ [TK.BEQZ, TK.BNEZ, TK.BGTZ, TK.BLTZ,], [TK.REG], [TK.COMMA], [TK.NUMBER, TK.LITERAL], [TK.EOL] ], ParseBranch),
                 ([ [TK.LDI], [TK.REG], [TK.COMMA], [TK.NUMBER,TK.LITERAL], [TK.EOL] ], ParseLDI),
+                ([ [TK.CALL, TK.JR], [TK.NUMBER, TK.LITERAL], [TK.EOL] ], ParseCallJr),
+                ([ [TK.CALL, TK.JMP, TK.INT], [TK.REG], [TK.EOL] ], ParseCallJmpInt),
+                ([ [TK.RET, TK.RETI], [TK.EOL] ], ParseRet),
+                ([ [TK.MOV], [TK.REG], [TK.COMMA], [TK.EPC], [TK.EOL] ], ParseEPC),
+                ([ [TK.MOV], [TK.EPC], [TK.COMMA], [TK.REG], [TK.EOL] ], ParseEPC),
 
                 //Skip rules
                 ([ [TK.EOL] ], Skip), //empty line
@@ -200,6 +205,77 @@ namespace RiscA.Core.Asm
 
             if (imm9 < -512 || imm9 > 511)
                 throw new Exception($"Number should be -512 .. 511 for '{tokens[pos].TokenString} {tokens[pos + 1].TokenString}, {tokens[pos + 3].TokenString}'");
+
+            parsedInstruction.Instructions.Add(i);
+            tokens.RemoveRange(pos, 5);
+            return tokens;
+        }
+
+        //[TK.CALL, TK.JR], [TK.NUMBER, TK.LITERAL], [TK.EOL]
+        static List<Token>? ParseCallJr(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
+        {
+            int refaddr = tokens[pos + 1].TokenType == TK.NUMBER ? tokens[pos + 1].intValue : 0;
+            int rd = refaddr & 0b0000_1111;
+            int imm7 = refaddr << 4;
+            if (tokens[pos + 1].TokenType == TK.LITERAL)
+                parsedInstruction.RefLabel = tokens[pos + 3].TokenString;
+
+            var i = new Instruction(0)
+                .withOpCode(OpCode.CALL_JMP_RET)
+                .withFunc2(tokens[pos].TokenType == TK.JR ? 3 : 0)
+                .withRd(rd)
+                .withImm7(imm7);
+
+            if (tokens[pos + 1].TokenType == TK.NUMBER && (refaddr < -1024 || refaddr > 1023))
+                throw new Exception($"Number should be -1024 .. 1023 for '{tokens[pos].TokenString} {tokens[pos + 1].TokenString}'");
+
+            parsedInstruction.Instructions.Add(i);
+            tokens.RemoveRange(pos, 3);
+            return tokens;
+        }
+
+        //[TK.CALL, TK.JMP, TK.INT], [TK.REG], [TK.EOL]
+        static List<Token>? ParseCallJmpInt(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
+        {
+            var func2 = (tokens[pos].TokenType) switch
+            {
+                TK.CALL => 1,
+                TK.JMP => 2,
+                TK.INT => 0,
+                _ => 0,
+            };
+            var i = new Instruction(0)
+                .withOpCode(tokens[pos].TokenType == TK.INT ? OpCode.INT_RETI : OpCode.CALL_JMP_RET)
+                .withFunc2(func2)
+                .withRd(tokens[pos + 1].intValue);
+            ;
+
+            parsedInstruction.Instructions.Add(i);
+            tokens.RemoveRange(pos, 3);
+            return tokens;
+        }
+
+        //[TK.RET, TK.RETI], [TK.EOL]
+        static List<Token>? ParseRet(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
+        {
+            var i = new Instruction(0)
+                .withOpCode(tokens[pos].TokenType == TK.RETI ? OpCode.INT_RETI : OpCode.CALL_JMP_RET)
+                .withFunc2(tokens[pos].TokenType == TK.RETI ? 1 : 2)
+                .withRd(tokens[pos].TokenType == TK.RETI ? 0 : 14); //R14 link register
+
+            parsedInstruction.Instructions.Add(i);
+            tokens.RemoveRange(pos, 2);
+            return tokens;
+        }
+
+        //[TK.MOV], [TK.REG], [TK.COMMA], [TK.EPC], [TK.EOL]
+        //[TK.MOV], [TK.EPC], [TK.COMMA], [TK.REG], [TK.EOL]
+        static List<Token>? ParseEPC(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
+        {
+            var i = new Instruction(0)
+                .withOpCode(OpCode.INT_RETI)
+                .withFunc2(tokens[pos + 1].TokenType == TK.REG ? 2 : 3)
+                .withRd(tokens[pos+1].TokenType == TK.REG ? tokens[pos + 1].intValue : tokens[pos + 3].intValue); //R14 link register
 
             parsedInstruction.Instructions.Add(i);
             tokens.RemoveRange(pos, 5);
