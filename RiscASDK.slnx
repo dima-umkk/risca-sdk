@@ -3,6 +3,9 @@
     <File Path="doc/README.md" />
     <File Path="doc/RiscA.MD" />
   </Folder>
+  <Folder Name="/samples/">
+    <File Path="samples/base.test.rasm" />
+  </Folder>
   <Folder Name="/Solution Items/">
     <File Path="AGENTS.md" />
   </Folder>

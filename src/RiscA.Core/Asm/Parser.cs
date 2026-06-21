@@ -21,9 +21,11 @@ namespace RiscA.Core.Asm
         static List<(List<TK[]>, Func<ParsedInstruction, List<TK[]>, List<Token>, int, List<Token>>)> rules =
             [
                 //Expressions
-                ([ [TK.NUMBER], [TK.SLASH,TK.ASTER,TK.MINUS,TK.PLUS], [TK.NUMBER] ], ExpMath),
-                ([ [TK.MINUS], [TK.NUMBER] ], ExpNegative),
                 ([ [TK.LPAREN], [TK.NUMBER], [TK.RPAREN] ], ExpParen),
+                ([ [TK.NUMBER], [TK.ASTER, TK.SLASH], [TK.NUMBER] ], ExpMath),     // high precedence (*, /)
+                ([ [TK.NUMBER], [TK.MINUS], [TK.NUMBER] ], ExpMath),
+                ([ [TK.MINUS], [TK.NUMBER] ], ExpNegative),
+                ([ [TK.NUMBER], [TK.PLUS], [TK.NUMBER] ], ExpMath),    
 
                 //Instructions
                 ([ [TK.MOV,TK.ADD,TK.SUB,TK.AND,TK.OR,TK.XOR,TK.NOT,TK.MUL], [TK.REG], [TK.COMMA], [TK.REG], [TK.EOL] ], ParseAlu),
@@ -33,22 +35,28 @@ namespace RiscA.Core.Asm
                 ([ [TK.STB, TK.STW], [TK.LSBRACKET], [TK.REG], [TK.PLUS], [TK.NUMBER], [TK.RSBRACKET], [TK.COMMA], [TK.REG], [TK.EOL] ], ParseST),
                 ([ [TK.BEQZ, TK.BNEZ, TK.BGTZ, TK.BLTZ,], [TK.REG], [TK.COMMA], [TK.NUMBER, TK.LITERAL], [TK.EOL] ], ParseBranch),
                 ([ [TK.LDI], [TK.REG], [TK.COMMA], [TK.NUMBER,TK.LITERAL], [TK.EOL] ], ParseLDI),
+
+                //Skip rules
+                ([ [TK.EOL] ], Skip), //empty line
             ];
 
         public ParsedInstruction ParseLine(string filename, string line, int linePos)
         {
             List<Token> tokens = Tokenizer.tokenizeLine(filename, line, linePos);
             ParsedInstruction parsedInstruction = new ParsedInstruction();
-            int pos = 0;
-            List<Token> stack = new List<Token>();
-            while (pos < tokens.Count)
-            {
-                stack.Add(tokens[pos++]);
-                while (ProcessToken(stack, parsedInstruction))
-                    ;
-            }
+            //int pos = 0;
+            //List<Token> stack = new List<Token>();
+            //while (pos < tokens.Count)
+            //{
+            //    stack.Add(tokens[pos++]);
+            //    while (ProcessToken(stack, parsedInstruction))
+            //        ;
+            //}
 
-            if (stack.Count > 0) //TODO: find most matched rule to clarify error
+            while (ProcessToken(tokens, parsedInstruction))
+                ;
+
+            if (tokens.Count > 0) //TODO: find most matched rule to clarify error
                 throw new Exception($"Parse error: {filename}: line: {linePos}");
 
             return parsedInstruction;
@@ -61,22 +69,32 @@ namespace RiscA.Core.Asm
                 var (pattern, handler) = rule;
                 if (pattern.Count > stack.Count)
                     continue;
-                bool ruleMatch = true;
-                for (int i = 0; i < pattern.Count; i++)
+                for (int startPos = stack.Count - pattern.Count; startPos >= 0; startPos--)
                 {
-                    if (Array.IndexOf(pattern[i], stack[stack.Count - pattern.Count + i].TokenType) < 0)
+                    bool ruleMatch = true;
+                    for (int i = 0; i < pattern.Count; i++)
                     {
-                        ruleMatch = false;
-                        break;
+                        if (Array.IndexOf(pattern[i], stack[startPos + i].TokenType) < 0)
+                        {
+                            ruleMatch = false;
+                            break;
+                        }
                     }
-                }
-                if (ruleMatch)
-                {
-                    stack = handler(pi, pattern, stack, stack.Count - pattern.Count);
-                    return true;
+                    if (ruleMatch)
+                    {
+                        Console.WriteLine($"P: {handler.Method.Name} {string.Join(",", stack.GetRange(startPos, pattern.Count).ConvertAll(x => $"{x.TokenType}({x.TokenString})"))}");
+                        stack = handler(pi, pattern, stack, startPos);
+                        return true;
+                    }
                 }
             }
             return false;
+        }
+
+        static List<Token> Skip(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
+        {
+            tokens.RemoveRange(pos, rule.Count);
+            return tokens;
         }
 
         static List<Token> ParseAlu(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
@@ -224,5 +242,6 @@ namespace RiscA.Core.Asm
             tokens.Insert(pos, number);
             return tokens;
         }
+
     }
 }
