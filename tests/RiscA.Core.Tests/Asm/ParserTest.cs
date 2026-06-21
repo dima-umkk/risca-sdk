@@ -179,6 +179,22 @@ namespace RiscA.Core.Tests.Asm
         [InlineData("add r3, (-1)*-127", new int[] { 2, 3, 127 })]
         [InlineData("add r3, (-5+511*(-1))/(-5)", new int[] { 2, 3, 103 })]
         [InlineData("add r3,  -5-100*(-1)", new int[] { 2, 3, 95 })]
+        [InlineData("add r3, 50+30",      new int[] { 2, 3, 80 })]
+        [InlineData("add r3, 100-30",     new int[] { 2, 3, 70 })]
+        [InlineData("add r3, 7*8",        new int[] { 2, 3, 56 })]
+        [InlineData("add r3, 100/4",      new int[] { 2, 3, 25 })]
+        [InlineData("add r3, (50)",       new int[] { 2, 3, 50 })]
+        [InlineData("add r3, ((50))",     new int[] { 2, 3, 50 })]
+        [InlineData("add r3, -50+80",     new int[] { 2, 3, 30 })]
+        [InlineData("add r3, -10*-5",     new int[] { 2, 3, 50 })]
+        [InlineData("add r3, 50+-25",     new int[] { 2, 3, 25 })]
+        [InlineData("add r3, 5--3",       new int[] { 2, 3, 8 })]
+        [InlineData("add r3, 10+5*2",     new int[] { 2, 3, 20 })]
+        [InlineData("add r3, 10*5+2",     new int[] { 2, 3, 52 })]
+        [InlineData("add r3, 20-5*2",     new int[] { 2, 3, 10 })]
+        [InlineData("add r3, (10+5)*2",   new int[] { 2, 3, 30 })]
+        [InlineData("add r3, 2*3*4",      new int[] { 2, 3, 24 })]
+        [InlineData("add r3, 10/3",       new int[] { 2, 3, 3 })]
         public void ParseExpressionTest(string line, int[] result)
         {
             Parser p = new Parser();
@@ -194,11 +210,47 @@ namespace RiscA.Core.Tests.Asm
         [Theory]
         [InlineData("add r3, (-1)*(32%3)", "%")]
         [InlineData("add r3, (-1)*(256/2)", "-128")]
+        [InlineData("add r3, -(2)", "0 .. 127")]
+        [InlineData("add r3, 70+60", "0 .. 127")]
+        [InlineData("shl r1, 20+20", "0 .. 32")]
+        [InlineData("shr r1, 100-50", "0 .. 32")]
+        [InlineData("ldi r5, -200-200-200", "-512 .. 511")]
         public void ParseExpressionExceptionTest(string line, string exstr)
         {
             Parser p = new Parser();
             Action act = () => p.ParseLine("test.rasm", line, 1);
             act.Should().Throw<Exception>().WithMessage($"*{exstr}*");
+        }
+
+        [Theory]
+        [InlineData("bnez r2, 10+20",    new int[] { 1, 2, 30 })]
+        [InlineData("bgtz r3, -7+8*2",   new int[] { 2, 3, 9 })]
+        [InlineData("bnez r2, 100-80",   new int[] { 1, 2, 20 })]
+        [InlineData("beqz r1, (10+5)*2", new int[] { 0, 1, 30 })]
+        public void ParseExpressionWithBranchTest(string line, int[] result)
+        {
+            Parser p = new Parser();
+            var pi = p.ParseLine("test.rasm", line, 1);
+            pi.Instructions.Should().HaveCount(1);
+            pi.Instructions[0].OpCode.Should().Be(OpCode.BRANCH);
+            pi.Instructions[0].Func2.Should().Be(result[0]);
+            pi.Instructions[0].Rd.Should().Be(result[1]);
+            pi.Instructions[0].Imm7.Should().Be(result[2]);
+        }
+
+        [Theory]
+        [InlineData("movi r5, 50+50",  new int[] { 0, 5, 100 })]
+        [InlineData("movl r12, 200-50", new int[] { 1, 12, 150 })]
+        [InlineData("movi r7, 5*30",    new int[] { 0, 7, 150 })]
+        public void ParseExpressionWithRegImmTest(string line, int[] result)
+        {
+            Parser p = new Parser();
+            var pi = p.ParseLine("test.rasm", line, 1);
+            pi.Instructions.Should().HaveCount(1);
+            pi.Instructions[0].OpCode.Should().Be(OpCode.REG_IMM);
+            pi.Instructions[0].Func1.Should().Be(result[0]);
+            pi.Instructions[0].Rd.Should().Be(result[1]);
+            pi.Instructions[0].Imm8.Should().Be(result[2]);
         }
 
         [Theory]

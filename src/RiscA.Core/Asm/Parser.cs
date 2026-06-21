@@ -24,7 +24,7 @@ namespace RiscA.Core.Asm
                 //Expressions
                 ([ [TK.MINUS], [TK.NUMBER] ], ExpNegative),
                 ([ [TK.LPAREN], [TK.NUMBER], [TK.RPAREN] ], ExpParen),
-                ([ [TK.NUMBER], [TK.ASTER, TK.SLASH], [TK.NUMBER] ], ExpMath),     // high precedence (*, /)
+                ([ [TK.NUMBER], [TK.ASTER, TK.SLASH], [TK.NUMBER] ], ExpMath),
                 ([ [TK.NUMBER], [TK.MINUS], [TK.NUMBER] ], ExpMath),
                 ([ [TK.NUMBER], [TK.PLUS], [TK.NUMBER] ], ExpMath),    
 
@@ -80,7 +80,8 @@ namespace RiscA.Core.Asm
                         var result = handler(pi, pattern, stack, startPos);
                         if(result == null)
                             continue;
-                        Console.WriteLine($"P: {handler.Method.Name} {string.Join(",", matchedTokens.ConvertAll(x => $"{x.TokenType}({x.TokenString})"))}");
+                        if(Verbose.ParserMatches)
+                            Console.WriteLine($"P: {handler.Method.Name} {string.Join(",", matchedTokens.ConvertAll(x => $"{x.TokenType}({x.TokenString})"))}");
                         stack = result;
                         return true;
                     }
