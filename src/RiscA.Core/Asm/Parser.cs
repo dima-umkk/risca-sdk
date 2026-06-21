@@ -19,12 +19,12 @@ namespace RiscA.Core.Asm
 
     public class Parser
     {
-        static List<(List<TK[]>, Func<ParsedInstruction, List<TK[]>, List<Token>, int, List<Token>>)> rules =
+        static List<(List<TK[]>, Func<ParsedInstruction, List<TK[]>, List<Token>, int, List<Token>?>)> rules =
             [
                 //Expressions
+                ([ [TK.MINUS], [TK.NUMBER] ], ExpNegative),
                 ([ [TK.LPAREN], [TK.NUMBER], [TK.RPAREN] ], ExpParen),
                 ([ [TK.NUMBER], [TK.ASTER, TK.SLASH], [TK.NUMBER] ], ExpMath),     // high precedence (*, /)
-                ([ [TK.MINUS], [TK.NUMBER] ], ExpNegative),
                 ([ [TK.NUMBER], [TK.MINUS], [TK.NUMBER] ], ExpMath),
                 ([ [TK.NUMBER], [TK.PLUS], [TK.NUMBER] ], ExpMath),    
 
@@ -76,8 +76,12 @@ namespace RiscA.Core.Asm
                     }
                     if (ruleMatch)
                     {
-                        Console.WriteLine($"P: {handler.Method.Name} {string.Join(",", stack.GetRange(startPos, pattern.Count).ConvertAll(x => $"{x.TokenType}({x.TokenString})"))}");
-                        stack = handler(pi, pattern, stack, startPos);
+                        var matchedTokens = stack.GetRange(startPos, pattern.Count);
+                        var result = handler(pi, pattern, stack, startPos);
+                        if(result == null)
+                            continue;
+                        Console.WriteLine($"P: {handler.Method.Name} {string.Join(",", matchedTokens.ConvertAll(x => $"{x.TokenType}({x.TokenString})"))}");
+                        stack = result;
                         return true;
                     }
                 }
@@ -85,13 +89,13 @@ namespace RiscA.Core.Asm
             return false;
         }
 
-        static List<Token> Skip(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
+        static List<Token>? Skip(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
         {
             tokens.RemoveRange(pos, rule.Count);
             return tokens;
         }
 
-        static List<Token> ParseAlu(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
+        static List<Token>? ParseAlu(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
         {
             var i = new Instruction(0)
                 .withOpCode(OpCode.ALU_REG_REG)
@@ -103,7 +107,7 @@ namespace RiscA.Core.Asm
             return tokens;
         }
 
-        static List<Token> ParseAluImm(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
+        static List<Token>? ParseAluImm(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
         {
             var i = new Instruction(0)
                 .withOpCode(OpCode.ALU_REG_IMM)
@@ -119,7 +123,7 @@ namespace RiscA.Core.Asm
             return tokens;
         }
 
-        static List<Token> ParseRegImm(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
+        static List<Token>? ParseRegImm(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
         {
             var i = new Instruction(0)
                 .withOpCode(OpCode.REG_IMM)
@@ -132,7 +136,7 @@ namespace RiscA.Core.Asm
             tokens.RemoveRange(pos, 5);
             return tokens;
         }
-        static List<Token> ParseLD(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
+        static List<Token>? ParseLD(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
         {
             var i = new Instruction(0)
                 .withOpCode(OpCode.ST_LD)
@@ -148,7 +152,7 @@ namespace RiscA.Core.Asm
             return tokens;
         }
 
-        static List<Token> ParseST(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
+        static List<Token>? ParseST(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
         {
             var i = new Instruction(0)
                 .withOpCode(OpCode.ST_LD)
@@ -164,7 +168,7 @@ namespace RiscA.Core.Asm
             return tokens;
         }
 
-        static List<Token> ParseBranch(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
+        static List<Token>? ParseBranch(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
         {
             var imm7 = tokens[pos + 3].TokenType == TK.NUMBER ? tokens[pos + 3].intValue : 0;
             if (tokens[pos + 3].TokenType == TK.LITERAL)
@@ -183,7 +187,7 @@ namespace RiscA.Core.Asm
             return tokens;
         }
 
-        static List<Token> ParseLDI(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
+        static List<Token>? ParseLDI(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
         {
             int imm9 = tokens[pos + 3].TokenType == TK.NUMBER ? tokens[pos + 3].intValue : 0;
             if (tokens[pos + 3].TokenType == TK.LITERAL)
@@ -201,7 +205,7 @@ namespace RiscA.Core.Asm
             return tokens;
         }
 
-        static List<Token> ExpMath(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
+        static List<Token>? ExpMath(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
         {
             int a = tokens[pos + 0].intValue;
             int b = tokens[pos + 2].intValue;
@@ -219,7 +223,7 @@ namespace RiscA.Core.Asm
             return tokens;
         }
 
-        static List<Token> ExpParen(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
+        static List<Token>? ExpParen(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
         {
             Token number = tokens[pos + 1];
             tokens.RemoveRange(pos, 3);
@@ -227,8 +231,11 @@ namespace RiscA.Core.Asm
             return tokens;
         }
 
-        static List<Token> ExpNegative(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
+        static List<Token>? ExpNegative(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
         {
+            if (pos > 0 && tokens[pos - 1].TokenType is TK.NUMBER or TK.RPAREN)
+                return null;
+
             Token number = tokens[pos + 1];
             number.intValue = 0 - number.intValue;
             number.TokenString = number.intValue.ToString();
