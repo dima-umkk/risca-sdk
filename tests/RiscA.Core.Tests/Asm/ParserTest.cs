@@ -275,5 +275,118 @@ namespace RiscA.Core.Tests.Asm
             act.Should().Throw<Exception>().WithMessage($"*{exstr}*");
         }
 
+        [Theory]
+        [InlineData("call 0",    new int[] { 0, 0, 0 })]
+        [InlineData("call 31",   new int[] { 0, 15, 1 })]
+        [InlineData("call 1023", new int[] { 0, 15, 63 })]
+        [InlineData("jr 16",     new int[] { 3, 0, 1 })]
+        [InlineData("jr 255",    new int[] { 3, 15, 15 })]
+        [InlineData("call -1024",new int[] { 0, 0, 64 })]
+        [InlineData("jr -1",     new int[] { 3, 15, 127 })]
+        public void ParserCallJrImmTest(string line, int[] result)
+        {
+            Parser p = new Parser();
+            var pi = p.ParseLine("test.rasm", line, 1);
+            pi.Instructions.Should().HaveCount(1);
+            pi.Instructions[0].OpCode.Should().Be(OpCode.CALL_JMP_RET);
+            pi.Instructions[0].Func2.Should().Be(result[0]);
+            pi.Instructions[0].Rd.Should().Be(result[1]);
+            pi.Instructions[0].Imm7.Should().Be(result[2]);
+        }
+
+        [Theory]
+        [InlineData("call label1", new int[] { 0 }, "label1")]
+        [InlineData("jr loop",     new int[] { 3 }, "loop")]
+        public void ParserCallJrLabelsTest(string line, int[] result, string label)
+        {
+            Parser p = new Parser();
+            var pi = p.ParseLine("test.rasm", line, 1);
+            pi.Instructions.Should().HaveCount(1);
+            pi.Instructions[0].OpCode.Should().Be(OpCode.CALL_JMP_RET);
+            pi.Instructions[0].Func2.Should().Be(result[0]);
+            pi.Instructions[0].Rd.Should().Be(0);
+            pi.Instructions[0].Imm7.Should().Be(0);
+            pi.RefLabel.Should().Be(label);
+        }
+
+        [Theory]
+        [InlineData("call 2000",  "-1024 .. 1023")]
+        [InlineData("jr -2000",   "-1024 .. 1023")]
+        [InlineData("call -1025", "-1024 .. 1023")]
+        [InlineData("jr 1024",    "-1024 .. 1023")]
+        public void ParserCallJrExceptionTest(string line, string exstr)
+        {
+            Parser p = new Parser();
+            Action act = () => p.ParseLine("test.rasm", line, 1);
+            act.Should().Throw<Exception>().WithMessage($"*{exstr}*");
+        }
+
+        [Theory]
+        [InlineData("call 0+1",  new int[] { 0, 1, 0 })]
+        [InlineData("call 2*2",  new int[] { 0, 4, 0 })]
+        [InlineData("jr 4+3",    new int[] { 3, 7, 0 })]
+        [InlineData("call 8*2",  new int[] { 0, 0, 1 })]
+        public void ParserCallJrExpressionTest(string line, int[] result)
+        {
+            Parser p = new Parser();
+            var pi = p.ParseLine("test.rasm", line, 1);
+            pi.Instructions.Should().HaveCount(1);
+            pi.Instructions[0].OpCode.Should().Be(OpCode.CALL_JMP_RET);
+            pi.Instructions[0].Func2.Should().Be(result[0]);
+            pi.Instructions[0].Rd.Should().Be(result[1]);
+            pi.Instructions[0].Imm7.Should().Be(result[2]);
+        }
+
+        [Theory]
+        [InlineData("call r5", new int[] { 1, 5 })]
+        [InlineData("jmp r7",  new int[] { 2, 7 })]
+        public void ParserCallJmpRegTest(string line, int[] result)
+        {
+            Parser p = new Parser();
+            var pi = p.ParseLine("test.rasm", line, 1);
+            pi.Instructions.Should().HaveCount(1);
+            pi.Instructions[0].OpCode.Should().Be(OpCode.CALL_JMP_RET);
+            pi.Instructions[0].Func2.Should().Be(result[0]);
+            pi.Instructions[0].Rd.Should().Be(result[1]);
+        }
+
+        [Theory]
+        [InlineData("int r3", new int[] { 0, 3 })]
+        public void ParserIntRegTest(string line, int[] result)
+        {
+            Parser p = new Parser();
+            var pi = p.ParseLine("test.rasm", line, 1);
+            pi.Instructions.Should().HaveCount(1);
+            pi.Instructions[0].OpCode.Should().Be(OpCode.INT_RETI);
+            pi.Instructions[0].Func2.Should().Be(result[0]);
+            pi.Instructions[0].Rd.Should().Be(result[1]);
+        }
+
+        [Theory]
+        [InlineData("ret",  new int[] { 2, 14 })]
+        [InlineData("reti", new int[] { 1, 0 })]
+        public void ParserRetRetiTest(string line, int[] result)
+        {
+            Parser p = new Parser();
+            var pi = p.ParseLine("test.rasm", line, 1);
+            pi.Instructions.Should().HaveCount(1);
+            pi.Instructions[0].OpCode.Should().Be(result[0] == 1 ? OpCode.INT_RETI : OpCode.CALL_JMP_RET);
+            pi.Instructions[0].Func2.Should().Be(result[0]);
+            pi.Instructions[0].Rd.Should().Be(result[1]);
+        }
+
+        [Theory]
+        [InlineData("mov r5, epc", new int[] { 2, 5 })]
+        [InlineData("mov epc, r7", new int[] { 3, 7 })]
+        public void ParserEPCTest(string line, int[] result)
+        {
+            Parser p = new Parser();
+            var pi = p.ParseLine("test.rasm", line, 1);
+            pi.Instructions.Should().HaveCount(1);
+            pi.Instructions[0].OpCode.Should().Be(OpCode.INT_RETI);
+            pi.Instructions[0].Func2.Should().Be(result[0]);
+            pi.Instructions[0].Rd.Should().Be(result[1]);
+        }
+
     }
 }

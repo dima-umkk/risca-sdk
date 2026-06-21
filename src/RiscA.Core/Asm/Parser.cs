@@ -216,9 +216,9 @@ namespace RiscA.Core.Asm
         {
             int refaddr = tokens[pos + 1].TokenType == TK.NUMBER ? tokens[pos + 1].intValue : 0;
             int rd = refaddr & 0b0000_1111;
-            int imm7 = refaddr << 4;
+            int imm7 = (refaddr >> 4) & 0b0111_1111;
             if (tokens[pos + 1].TokenType == TK.LITERAL)
-                parsedInstruction.RefLabel = tokens[pos + 3].TokenString;
+                parsedInstruction.RefLabel = tokens[pos + 1].TokenString;
 
             var i = new Instruction(0)
                 .withOpCode(OpCode.CALL_JMP_RET)
