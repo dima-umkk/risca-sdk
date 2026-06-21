@@ -46,16 +46,16 @@ namespace RiscA.Core.Asm
                 ([ [TK.EOL] ], Skip), //empty line
             ];
 
-        public ParsedInstruction ParseLine(string filename, string line, int linePos)
+        public ParsedInstruction ParseLine(string line)
         {
-            List<Token> tokens = Tokenizer.tokenizeLine(filename, line, linePos);
+            List<Token> tokens = Tokenizer.tokenizeLine(line);
             ParsedInstruction parsedInstruction = new ParsedInstruction();
             while (ProcessToken(tokens, parsedInstruction))
                 ;
 
             if (tokens.Count > 0) //TODO: find most matched rule to clarify error
             {
-                throw new Exception($"Parse error: {filename}: line: {linePos}: Unparsed: {string.Join(",", tokens.ConvertAll(x => $"{x.TokenType}({x.TokenString})"))}");
+                throw new Exception($"ERROR: Unparsed: {string.Join(",", tokens.ConvertAll(x => $"{x.TokenType}({x.TokenString})"))}");
             }
 
             return parsedInstruction;

@@ -30,7 +30,7 @@ for(int i=0; i<lines.Length; i++)
 {
     try
     {
-        ParsedInstruction pi = parser.ParseLine(filename, lines[i], i);
+        ParsedInstruction pi = parser.ParseLine(lines[i]);
         if (Verbose.AssemblerInstructions)
         {
             Console.WriteLine($">{lines[i]}");

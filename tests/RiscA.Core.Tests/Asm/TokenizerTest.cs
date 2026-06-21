@@ -12,7 +12,7 @@ namespace RiscA.Core.Tests.Asm
         [InlineData("\tmovi r1, 123", new string[] { "movi", "r1", ",", "123", "{EOL}" })]
         public void testTokenizerStrings(string line, string[] result)
         {
-            var tokens = Tokenizer.tokenizeLine("test.rasm", line, 1);
+            var tokens = Tokenizer.tokenizeLine(line);
             tokens.Should().NotBeEmpty();
             tokens.Should().HaveCount(result.Length);
             for(int i=0; i<result.Length; i++)
@@ -27,7 +27,7 @@ namespace RiscA.Core.Tests.Asm
         [InlineData("\tadd r0, 123", new TK[] { TK.ADD, TK.REG, TK.COMMA, TK.NUMBER, TK.EOL})]
         public void testTokenizerTokenTypes(string line, TK[] result)
         {
-            var tokens = Tokenizer.tokenizeLine("test.rasm", line, 1);
+            var tokens = Tokenizer.tokenizeLine(line);
             tokens.Should().NotBeEmpty();
             tokens.Should().HaveCount(result.Length);
             for (int i = 0; i < result.Length; i++)
@@ -49,7 +49,7 @@ namespace RiscA.Core.Tests.Asm
         [InlineData("add r0, 0xFFFFFFFF", -1)]
         public void testTokenizerHexBinaryIntValue(string line, int expected)
         {
-            var tokens = Tokenizer.tokenizeLine("test.rasm", line, 1);
+            var tokens = Tokenizer.tokenizeLine(line);
             tokens.Should().NotBeEmpty();
             var numberToken = tokens.First(t => t.TokenType == TK.NUMBER);
             numberToken.intValue.Should().Be(expected);
@@ -60,7 +60,7 @@ namespace RiscA.Core.Tests.Asm
         [InlineData("add r0, 0b1010", new string[] { "add", "r0", ",", "0b1010", "{EOL}" })]
         public void testTokenizerHexBinaryStrings(string line, string[] result)
         {
-            var tokens = Tokenizer.tokenizeLine("test.rasm", line, 1);
+            var tokens = Tokenizer.tokenizeLine(line);
             tokens.Should().NotBeEmpty();
             tokens.Should().HaveCount(result.Length);
             for (int i = 0; i < result.Length; i++)

@@ -119,7 +119,7 @@ namespace RiscA.Core.Asm
             (c >= 'a' && c <= 'f') ||
             (c >= 'A' && c <= 'F');
 
-        public static List<Token> tokenizeLine(string filename, string line, int linenumber)
+        public static List<Token> tokenizeLine(string line)
         {
             var tokens = new List<Token>();
             int pos = 0;
@@ -179,7 +179,7 @@ namespace RiscA.Core.Asm
                             while (endpos < line.Length && IsHexDigit(line[endpos]))
                                 endpos++;
                             if (endpos == pos)
-                                throw new Exception($"Syntax error: expected hex digits after 0x: {filename}: {linenumber}:{pos}");
+                                throw new Exception($"Syntax error {pos}: expected hex digits after 0x '{line[pos]}'");
                             intVal = unchecked((int)Convert.ToUInt32(line.Substring(pos, endpos - pos), 16));
                             tokens.Add(new Token(TK.NUMBER, line.Substring(start, endpos - start), start, intVal));
                             pos = endpos;
@@ -193,7 +193,7 @@ namespace RiscA.Core.Asm
                             while (endpos < line.Length && (line[endpos] == '0' || line[endpos] == '1'))
                                 endpos++;
                             if (endpos == pos)
-                                throw new Exception($"Syntax error: expected binary digits after 0b: {filename}: {linenumber}:{pos}");
+                                throw new Exception($"Syntax error {pos}: expected binary digits after 0b '{line[pos]}'");
                             intVal = unchecked((int)Convert.ToUInt32(line.Substring(pos, endpos - pos), 2));
                             tokens.Add(new Token(TK.NUMBER, line.Substring(start, endpos - start), start, intVal));
                             pos = endpos;
@@ -211,7 +211,7 @@ namespace RiscA.Core.Asm
                     }
                     tokenString = line.Substring(pos, endpos - pos);
                     if (!int.TryParse(tokenString, out intVal))
-                        throw new Exception($"Syntax error: failed to parse number: {filename}: {linenumber}:{pos}");
+                        throw new Exception($"Syntax error {pos}: failed to parse number '{line[pos]}'");
                     tokens.Add(new Token(TK.NUMBER, tokenString, pos, intVal));
                     pos = endpos;
                     continue;
@@ -277,7 +277,7 @@ namespace RiscA.Core.Asm
                     continue;
                 }
                 //no rules found - error
-                throw new Exception($"Syntax error '{line[pos]}' {filename}: {linenumber}:{pos}");
+                throw new Exception($"Syntax error {pos}: '{line[pos]}'");
             }
 
             tokens.Add(new Token(TK.EOL, "{EOL}", pos));

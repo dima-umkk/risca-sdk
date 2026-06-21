@@ -20,7 +20,7 @@ namespace RiscA.Core.Tests.Asm
         public void ParserAluRegRegTest(string line, int[] result)
         {
             Parser p = new Parser();
-            var pi = p.ParseLine("test.rasm", line, 1);
+            var pi = p.ParseLine(line);
             pi.Instructions.Should().HaveCount(1);
             pi.Instructions[0].OpCode.Should().Be(OpCode.ALU_REG_REG);
             pi.Instructions[0].Func3.Should().Be(result[0]);
@@ -36,7 +36,7 @@ namespace RiscA.Core.Tests.Asm
         public void ParserAluRegImmTest(string line, int[] result)
         {
             Parser p = new Parser();
-            var pi = p.ParseLine("test.rasm", line, 1);
+            var pi = p.ParseLine(line);
             pi.Instructions.Should().HaveCount(1);
             pi.Instructions[0].OpCode.Should().Be(OpCode.ALU_REG_IMM);
             pi.Instructions[0].Func2.Should().Be(result[0]);
@@ -52,7 +52,7 @@ namespace RiscA.Core.Tests.Asm
         public void ParserAluRegImmHexBinTest(string line, int[] result)
         {
             Parser p = new Parser();
-            var pi = p.ParseLine("test.rasm", line, 1);
+            var pi = p.ParseLine(line);
             pi.Instructions.Should().HaveCount(1);
             pi.Instructions[0].OpCode.Should().Be(OpCode.ALU_REG_IMM);
             pi.Instructions[0].Func2.Should().Be(result[0]);
@@ -68,7 +68,7 @@ namespace RiscA.Core.Tests.Asm
         public void ParserAluRegImmExceptionTest(string line, string exstr)
         {
             Parser p = new Parser();
-            Action act = () => p.ParseLine("test.rasm", line, 1);
+            Action act = () => p.ParseLine(line);
             act.Should().Throw<Exception>().WithMessage($"*{exstr}*");
         }
 
@@ -78,7 +78,7 @@ namespace RiscA.Core.Tests.Asm
         public void ParserRegImmTest(string line, int[] result)
         {
             Parser p = new Parser();
-            var pi = p.ParseLine("test.rasm", line, 1);
+            var pi = p.ParseLine(line);
             pi.Instructions.Should().HaveCount(1);
             pi.Instructions[0].OpCode.Should().Be(OpCode.REG_IMM);
             pi.Instructions[0].Func1.Should().Be(result[0]);
@@ -92,7 +92,7 @@ namespace RiscA.Core.Tests.Asm
         public void ParserRegImmExceptionTest(string line, string exstr)
         {
             Parser p = new Parser();
-            Action act = () => p.ParseLine("test.rasm", line, 1);
+            Action act = () => p.ParseLine(line);
             act.Should().Throw<Exception>().WithMessage($"*{exstr}*");
         }
 
@@ -102,7 +102,7 @@ namespace RiscA.Core.Tests.Asm
         public void ParserLDTest(string line, int[] result)
         {
             Parser p = new Parser();
-            var pi = p.ParseLine("test.rasm", line, 1);
+            var pi = p.ParseLine(line);
             pi.Instructions.Should().HaveCount(1);
             pi.Instructions[0].OpCode.Should().Be(OpCode.ST_LD);
             pi.Instructions[0].Func21.Should().Be(0);
@@ -118,7 +118,7 @@ namespace RiscA.Core.Tests.Asm
         public void ParserLDExceptionTest(string line, string exstr)
         {
             Parser p = new Parser();
-            Action act = () => p.ParseLine("test.rasm", line, 1);
+            Action act = () => p.ParseLine(line);
             act.Should().Throw<Exception>().WithMessage($"*{exstr}*");
         }
 
@@ -128,7 +128,7 @@ namespace RiscA.Core.Tests.Asm
         public void ParserSTTest(string line, int[] result)
         {
             Parser p = new Parser();
-            var pi = p.ParseLine("test.rasm", line, 1);
+            var pi = p.ParseLine(line);
             pi.Instructions.Should().HaveCount(1);
             pi.Instructions[0].OpCode.Should().Be(OpCode.ST_LD);
             pi.Instructions[0].Func21.Should().Be(1);
@@ -144,7 +144,7 @@ namespace RiscA.Core.Tests.Asm
         public void ParserSTExceptionTest(string line, string exstr)
         {
             Parser p = new Parser();
-            Action act = () => p.ParseLine("test.rasm", line, 1);
+            Action act = () => p.ParseLine(line);
             act.Should().Throw<Exception>().WithMessage($"*{exstr}*");
         }
 
@@ -156,7 +156,7 @@ namespace RiscA.Core.Tests.Asm
         public void ParserBranchTest(string line, int[] result)
         {
             Parser p = new Parser();
-            var pi = p.ParseLine("test.rasm", line, 1);
+            var pi = p.ParseLine(line);
             pi.Instructions.Should().HaveCount(1);
             pi.Instructions[0].OpCode.Should().Be(OpCode.BRANCH);
             pi.Instructions[0].Func2.Should().Be(result[0]);
@@ -172,7 +172,7 @@ namespace RiscA.Core.Tests.Asm
         public void ParserBranchLabelsTest(string line, int[] result, string label)
         {
             Parser p = new Parser();
-            var pi = p.ParseLine("test.rasm", line, 1);
+            var pi = p.ParseLine(line);
             pi.Instructions.Should().HaveCount(1);
             pi.Instructions[0].OpCode.Should().Be(OpCode.BRANCH);
             pi.Instructions[0].Func2.Should().Be(result[0]);
@@ -187,7 +187,7 @@ namespace RiscA.Core.Tests.Asm
         public void ParserBranchExceptionsTest(string line, string exstr)
         {
             Parser p = new Parser();
-            Action act = () => p.ParseLine("test.rasm", line, 1);
+            Action act = () => p.ParseLine(line);
             act.Should().Throw<Exception>().WithMessage($"*{exstr}*");
         }
 
@@ -214,7 +214,7 @@ namespace RiscA.Core.Tests.Asm
         public void ParseExpressionTest(string line, int[] result)
         {
             Parser p = new Parser();
-            var pi = p.ParseLine("test.rasm", line, 1);
+            var pi = p.ParseLine(line);
             pi.Instructions.Should().HaveCount(1);
             pi.Instructions[0].OpCode.Should().Be(OpCode.ALU_REG_IMM);
             pi.Instructions[0].Func2.Should().Be(result[0]);
@@ -234,7 +234,7 @@ namespace RiscA.Core.Tests.Asm
         public void ParseExpressionExceptionTest(string line, string exstr)
         {
             Parser p = new Parser();
-            Action act = () => p.ParseLine("test.rasm", line, 1);
+            Action act = () => p.ParseLine(line);
             act.Should().Throw<Exception>().WithMessage($"*{exstr}*");
         }
 
@@ -246,7 +246,7 @@ namespace RiscA.Core.Tests.Asm
         public void ParseExpressionWithBranchTest(string line, int[] result)
         {
             Parser p = new Parser();
-            var pi = p.ParseLine("test.rasm", line, 1);
+            var pi = p.ParseLine(line);
             pi.Instructions.Should().HaveCount(1);
             pi.Instructions[0].OpCode.Should().Be(OpCode.BRANCH);
             pi.Instructions[0].Func2.Should().Be(result[0]);
@@ -261,7 +261,7 @@ namespace RiscA.Core.Tests.Asm
         public void ParseExpressionWithRegImmTest(string line, int[] result)
         {
             Parser p = new Parser();
-            var pi = p.ParseLine("test.rasm", line, 1);
+            var pi = p.ParseLine(line);
             pi.Instructions.Should().HaveCount(1);
             pi.Instructions[0].OpCode.Should().Be(OpCode.REG_IMM);
             pi.Instructions[0].Func1.Should().Be(result[0]);
@@ -274,7 +274,7 @@ namespace RiscA.Core.Tests.Asm
         public void ParserLDILabelsTest(string line, int[] result, string label)
         {
             Parser p = new Parser();
-            var pi = p.ParseLine("test.rasm", line, 1);
+            var pi = p.ParseLine(line);
             pi.Instructions.Should().HaveCount(1);
             pi.Instructions[0].OpCode.Should().Be(OpCode.LDI);
             pi.Instructions[0].Rd.Should().Be(result[0]);
@@ -287,7 +287,7 @@ namespace RiscA.Core.Tests.Asm
         public void ParseLDIExceptionTest(string line, string exstr)
         {
             Parser p = new Parser();
-            Action act = () => p.ParseLine("test.rasm", line, 1);
+            Action act = () => p.ParseLine(line);
             act.Should().Throw<Exception>().WithMessage($"*{exstr}*");
         }
 
@@ -302,7 +302,7 @@ namespace RiscA.Core.Tests.Asm
         public void ParserCallJrImmTest(string line, int[] result)
         {
             Parser p = new Parser();
-            var pi = p.ParseLine("test.rasm", line, 1);
+            var pi = p.ParseLine(line);
             pi.Instructions.Should().HaveCount(1);
             pi.Instructions[0].OpCode.Should().Be(OpCode.CALL_JMP_RET);
             pi.Instructions[0].Func2.Should().Be(result[0]);
@@ -316,7 +316,7 @@ namespace RiscA.Core.Tests.Asm
         public void ParserCallJrLabelsTest(string line, int[] result, string label)
         {
             Parser p = new Parser();
-            var pi = p.ParseLine("test.rasm", line, 1);
+            var pi = p.ParseLine(line);
             pi.Instructions.Should().HaveCount(1);
             pi.Instructions[0].OpCode.Should().Be(OpCode.CALL_JMP_RET);
             pi.Instructions[0].Func2.Should().Be(result[0]);
@@ -333,7 +333,7 @@ namespace RiscA.Core.Tests.Asm
         public void ParserCallJrExceptionTest(string line, string exstr)
         {
             Parser p = new Parser();
-            Action act = () => p.ParseLine("test.rasm", line, 1);
+            Action act = () => p.ParseLine(line);
             act.Should().Throw<Exception>().WithMessage($"*{exstr}*");
         }
 
@@ -345,7 +345,7 @@ namespace RiscA.Core.Tests.Asm
         public void ParserCallJrExpressionTest(string line, int[] result)
         {
             Parser p = new Parser();
-            var pi = p.ParseLine("test.rasm", line, 1);
+            var pi = p.ParseLine(line);
             pi.Instructions.Should().HaveCount(1);
             pi.Instructions[0].OpCode.Should().Be(OpCode.CALL_JMP_RET);
             pi.Instructions[0].Func2.Should().Be(result[0]);
@@ -359,7 +359,7 @@ namespace RiscA.Core.Tests.Asm
         public void ParserCallJmpRegTest(string line, int[] result)
         {
             Parser p = new Parser();
-            var pi = p.ParseLine("test.rasm", line, 1);
+            var pi = p.ParseLine(line);
             pi.Instructions.Should().HaveCount(1);
             pi.Instructions[0].OpCode.Should().Be(OpCode.CALL_JMP_RET);
             pi.Instructions[0].Func2.Should().Be(result[0]);
@@ -371,7 +371,7 @@ namespace RiscA.Core.Tests.Asm
         public void ParserIntRegTest(string line, int[] result)
         {
             Parser p = new Parser();
-            var pi = p.ParseLine("test.rasm", line, 1);
+            var pi = p.ParseLine(line);
             pi.Instructions.Should().HaveCount(1);
             pi.Instructions[0].OpCode.Should().Be(OpCode.INT_RETI);
             pi.Instructions[0].Func2.Should().Be(result[0]);
@@ -384,7 +384,7 @@ namespace RiscA.Core.Tests.Asm
         public void ParserRetRetiTest(string line, int[] result)
         {
             Parser p = new Parser();
-            var pi = p.ParseLine("test.rasm", line, 1);
+            var pi = p.ParseLine(line);
             pi.Instructions.Should().HaveCount(1);
             pi.Instructions[0].OpCode.Should().Be(result[0] == 1 ? OpCode.INT_RETI : OpCode.CALL_JMP_RET);
             pi.Instructions[0].Func2.Should().Be(result[0]);
@@ -397,7 +397,7 @@ namespace RiscA.Core.Tests.Asm
         public void ParserEPCTest(string line, int[] result)
         {
             Parser p = new Parser();
-            var pi = p.ParseLine("test.rasm", line, 1);
+            var pi = p.ParseLine(line);
             pi.Instructions.Should().HaveCount(1);
             pi.Instructions[0].OpCode.Should().Be(OpCode.INT_RETI);
             pi.Instructions[0].Func2.Should().Be(result[0]);
