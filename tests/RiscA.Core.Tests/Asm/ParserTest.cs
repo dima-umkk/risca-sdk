@@ -45,6 +45,22 @@ namespace RiscA.Core.Tests.Asm
         }
 
         [Theory]
+        [InlineData("shl r1, 0x1F", new int[] { 0, 1, 31 })]
+        [InlineData("shr r2, 0b10", new int[] { 1, 2, 2 })]
+        [InlineData("add r3, 0x7F", new int[] { 2, 3, 127 })]
+        [InlineData("sub r4, 0b11", new int[] { 3, 4, 3 })]
+        public void ParserAluRegImmHexBinTest(string line, int[] result)
+        {
+            Parser p = new Parser();
+            var pi = p.ParseLine("test.rasm", line, 1);
+            pi.Instructions.Should().HaveCount(1);
+            pi.Instructions[0].OpCode.Should().Be(OpCode.ALU_REG_IMM);
+            pi.Instructions[0].Func2.Should().Be(result[0]);
+            pi.Instructions[0].Rd.Should().Be(result[1]);
+            pi.Instructions[0].Imm7.Should().Be(result[2]);
+        }
+
+        [Theory]
         [InlineData("shl r1, 33", "0 .. 32")]
         [InlineData("shr r2, 222", "0 .. 32")]
         [InlineData("add r3, 128", "0 .. 127")]

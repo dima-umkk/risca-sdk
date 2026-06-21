@@ -20,8 +20,6 @@ namespace RiscA.Core.Asm
         MINUS,       // -
         ASTER,       // *
         SLASH,       // /
-        HEX,         // 0x
-
         EOL,         //End of line
 
         //literal tokens
@@ -116,6 +114,11 @@ namespace RiscA.Core.Asm
             {"epc", TK.EPC },
         };
 
+        private static bool IsHexDigit(char c) =>
+            (c >= '0' && c <= '9') ||
+            (c >= 'a' && c <= 'f') ||
+            (c >= 'A' && c <= 'F');
+
         public static List<Token> tokenizeLine(string filename, string line, int linenumber)
         {
             var tokens = new List<Token>();
@@ -161,15 +164,52 @@ namespace RiscA.Core.Asm
                 }
                 else if (char.IsDigit(line[pos])) //read number
                 {
-                    int endpos = pos + 1;
+                    int endpos;
+                    string tokenString;
+                    int intVal;
+
+                    if (line[pos] == '0' && pos + 1 < line.Length)
+                    {
+                        char nextLower = char.ToLowerInvariant(line[pos + 1]);
+                        if (nextLower == 'x') // hex
+                        {
+                            int start = pos;
+                            pos += 2;
+                            endpos = pos;
+                            while (endpos < line.Length && IsHexDigit(line[endpos]))
+                                endpos++;
+                            if (endpos == pos)
+                                throw new Exception($"Syntax error: expected hex digits after 0x: {filename}: {linenumber}:{pos}");
+                            intVal = unchecked((int)Convert.ToUInt32(line.Substring(pos, endpos - pos), 16));
+                            tokens.Add(new Token(TK.NUMBER, line.Substring(start, endpos - start), start, intVal));
+                            pos = endpos;
+                            continue;
+                        }
+                        if (nextLower == 'b') // binary
+                        {
+                            int start = pos;
+                            pos += 2;
+                            endpos = pos;
+                            while (endpos < line.Length && (line[endpos] == '0' || line[endpos] == '1'))
+                                endpos++;
+                            if (endpos == pos)
+                                throw new Exception($"Syntax error: expected binary digits after 0b: {filename}: {linenumber}:{pos}");
+                            intVal = unchecked((int)Convert.ToUInt32(line.Substring(pos, endpos - pos), 2));
+                            tokens.Add(new Token(TK.NUMBER, line.Substring(start, endpos - start), start, intVal));
+                            pos = endpos;
+                            continue;
+                        }
+                    }
+
+                    // decimal
+                    endpos = pos + 1;
                     while (endpos < line.Length)
                     {
                         if (!char.IsDigit(line[endpos]))
                             break;
                         endpos++;
                     }
-                    string tokenString = line.Substring(pos, endpos - pos);
-                    int intVal = 0;
+                    tokenString = line.Substring(pos, endpos - pos);
                     if (!int.TryParse(tokenString, out intVal))
                         throw new Exception($"Syntax error: failed to parse number: {filename}: {linenumber}:{pos}");
                     tokens.Add(new Token(TK.NUMBER, tokenString, pos, intVal));

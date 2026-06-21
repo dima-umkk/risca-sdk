@@ -36,5 +36,38 @@ namespace RiscA.Core.Tests.Asm
                 tokens[i].TokenType.Should().Be(expect);
             }
         }
+
+        [Theory]
+        [InlineData("add r0, 0xFF", 255)]
+        [InlineData("add r0, 0xff", 255)]
+        [InlineData("add r0, 0XFF", 255)]
+        [InlineData("add r0, 0xABC", 2748)]
+        [InlineData("add r0, 0x0", 0)]
+        [InlineData("add r0, 0b1010", 10)]
+        [InlineData("add r0, 0b0", 0)]
+        [InlineData("add r0, 0b11111111", 255)]
+        [InlineData("add r0, 0xFFFFFFFF", -1)]
+        public void testTokenizerHexBinaryIntValue(string line, int expected)
+        {
+            var tokens = Tokenizer.tokenizeLine("test.rasm", line, 1);
+            tokens.Should().NotBeEmpty();
+            var numberToken = tokens.First(t => t.TokenType == TK.NUMBER);
+            numberToken.intValue.Should().Be(expected);
+        }
+
+        [Theory]
+        [InlineData("add r0, 0xFF", new string[] { "add", "r0", ",", "0xFF", "{EOL}" })]
+        [InlineData("add r0, 0b1010", new string[] { "add", "r0", ",", "0b1010", "{EOL}" })]
+        public void testTokenizerHexBinaryStrings(string line, string[] result)
+        {
+            var tokens = Tokenizer.tokenizeLine("test.rasm", line, 1);
+            tokens.Should().NotBeEmpty();
+            tokens.Should().HaveCount(result.Length);
+            for (int i = 0; i < result.Length; i++)
+            {
+                string expect = result[i];
+                tokens[i].TokenString.Should().Be(expect);
+            }
+        }
     }
 }
