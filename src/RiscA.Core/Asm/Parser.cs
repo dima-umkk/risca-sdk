@@ -32,6 +32,7 @@ namespace RiscA.Core.Asm
                 ([ [TK.LDB, TK.LDW], [TK.REG], [TK.COMMA], [TK.LSBRACKET], [TK.REG], [TK.PLUS], [TK.NUMBER], [TK.RSBRACKET], [TK.EOL] ], ParseLD),
                 ([ [TK.STB, TK.STW], [TK.LSBRACKET], [TK.REG], [TK.PLUS], [TK.NUMBER], [TK.RSBRACKET], [TK.COMMA], [TK.REG], [TK.EOL] ], ParseST),
                 ([ [TK.BEQZ, TK.BNEZ, TK.BGTZ, TK.BLTZ,], [TK.REG], [TK.COMMA], [TK.NUMBER, TK.LITERAL], [TK.EOL] ], ParseBranch),
+                ([ [TK.LDI], [TK.REG], [TK.COMMA], [TK.NUMBER,TK.LITERAL], [TK.EOL] ], ParseLDI),
             ];
 
         public ParsedInstruction ParseLine(string filename, string line, int linePos)
@@ -164,6 +165,24 @@ namespace RiscA.Core.Asm
 
             if (imm7 < -64 || imm7 > 63)
                 throw new Exception($"Number should be -64 .. 63 for '{tokens[pos].TokenString} {tokens[pos + 1].TokenString}, {tokens[pos + 3].TokenString}'");
+
+            parsedInstruction.Instructions.Add(i);
+            tokens.RemoveRange(pos, 5);
+            return tokens;
+        }
+
+        static List<Token> ParseLDI(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
+        {
+            int imm9 = tokens[pos + 3].TokenType == TK.NUMBER ? tokens[pos + 3].intValue : 0;
+            if (tokens[pos + 3].TokenType == TK.LITERAL)
+                parsedInstruction.RefLabel = tokens[pos + 3].TokenString;
+            var i = new Instruction(0)
+                .withOpCode(OpCode.LDI)
+                .withRd(tokens[pos + 1].intValue)
+                .withImm9(tokens[pos + 3].intValue);
+
+            if (imm9 < -512 || imm9 > 511)
+                throw new Exception($"Number should be -512 .. 511 for '{tokens[pos].TokenString} {tokens[pos + 1].TokenString}, {tokens[pos + 3].TokenString}'");
 
             parsedInstruction.Instructions.Add(i);
             tokens.RemoveRange(pos, 5);

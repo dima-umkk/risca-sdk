@@ -199,5 +199,27 @@ namespace RiscA.Core.Tests.Asm
             act.Should().Throw<Exception>().WithMessage($"*{exstr}*");
         }
 
+        [Theory]
+        [InlineData("ldi r15, label1", new int[] { 15 }, "label1")]
+        public void ParserLDILabelsTest(string line, int[] result, string label)
+        {
+            Parser p = new Parser();
+            var pi = p.ParseLine("test.rasm", line, 1);
+            pi.Instructions.Should().HaveCount(1);
+            pi.Instructions[0].OpCode.Should().Be(OpCode.LDI);
+            pi.Instructions[0].Rd.Should().Be(result[0]);
+            pi.Instructions[0].Imm7.Should().Be(0);
+            pi.RefLabel.Should().Be(label);
+        }
+
+        //[Theory]
+        //[InlineData("ldi r5, -5+511*(-1)", "%")]
+        //public void ParseLDIExceptionTest(string line, string exstr)
+        //{
+        //    Parser p = new Parser();
+        //    Action act = () => p.ParseLine("test.rasm", line, 1);
+        //    act.Should().Throw<Exception>().WithMessage($"*{exstr}*");
+        //}
+
     }
 }
