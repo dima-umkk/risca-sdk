@@ -2,7 +2,7 @@
   "profiles": {
     "RiscA.Assembler": {
       "commandName": "Project",
-      "commandLineArgs": "-i samples\\base.test.rasm",
+      "commandLineArgs": "-i samples\\base.test.rasm -vi",
       "workingDirectory": "$(SolutionDir)"
     }
   }

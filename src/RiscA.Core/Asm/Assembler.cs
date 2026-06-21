@@ -17,7 +17,10 @@ namespace RiscA.Core.Asm
     public class Assembler(int address)
     {
         int curAddress = address;
+        
+        public List<SrcLine> Src { get {  return src; }  }
         List<SrcLine> src = new List<SrcLine>();
+
         Dictionary<string, SrcLine> labelMap = new Dictionary<string, SrcLine>();
 
         public void Compile(string filename)
@@ -42,14 +45,38 @@ namespace RiscA.Core.Asm
                 }
                 catch (Exception ex)
                 {
-                    throw new Exception($"ERROR: {filename}:{i}: {ex.Message}");
+                    throw new Exception($"{filename}:{i}: {ex.Message}");
                 }
             }
 
             //2nd pass: process labels
             for (int i = 0; i < src.Count; i++)
             {
-
+                if (src[i].ParsedInstruction is ParsedInstruction pi && pi.RefLabel is string reflabel)
+                {
+                    SrcLine? refline;
+                    if (!labelMap.TryGetValue(reflabel, out refline))
+                    {
+                        throw new Exception($"{src[i].Filename}: {src[i].Pos}: Unknonw label {reflabel}");
+                    }
+                    int refbytes = refline.Address - src[i].Address;
+                    int refinstr = refbytes >> 1;
+                    int refwords = refbytes >> 2;
+                    int imm = pi.Instructions[0].OpCode == ISA.OpCode.CALL_JMP_RET ? refwords : refinstr;
+                    if(pi.Instructions[0].OpCode == ISA.OpCode.CALL_JMP_RET && (refbytes & 0b0000_0011) != 0)
+                    {
+                        throw new Exception($"{src[i].Filename}: {src[i].Pos}: Call {reflabel} is not word aligned!");
+                    }
+                    try
+                    {
+                        pi.Instructions[0].CheckImmLimits(imm);
+                    }
+                    catch(Exception ex)
+                    {
+                        throw new Exception($"{src[i].Filename}: {src[i].Pos}: Reference address to far ({imm})! {ex.Message}");
+                    }
+                    pi.Instructions[0] = pi.Instructions[0].SetImm(imm);
+                }
 
             }
         }

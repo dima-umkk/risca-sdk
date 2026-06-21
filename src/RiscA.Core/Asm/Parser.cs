@@ -6,6 +6,7 @@ using System.Data;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace RiscA.Core.Asm
 {
@@ -26,7 +27,8 @@ namespace RiscA.Core.Asm
                 ([ [TK.LPAREN], [TK.NUMBER], [TK.RPAREN] ], ExpParen),
                 ([ [TK.NUMBER], [TK.ASTER, TK.SLASH], [TK.NUMBER] ], ExpMath),
                 ([ [TK.NUMBER], [TK.MINUS], [TK.NUMBER] ], ExpMath),
-                ([ [TK.NUMBER], [TK.PLUS], [TK.NUMBER] ], ExpMath),    
+                ([ [TK.NUMBER], [TK.PLUS], [TK.NUMBER] ], ExpMath),
+                ([ [TK.LITERAL], [TK.COLON] ], ExpLabel),
 
                 //Instructions
                 ([ [TK.MOV,TK.ADD,TK.SUB,TK.AND,TK.OR,TK.XOR,TK.NOT,TK.MUL], [TK.REG], [TK.COMMA], [TK.REG], [TK.EOL] ], ParseAlu),
@@ -55,7 +57,7 @@ namespace RiscA.Core.Asm
 
             if (tokens.Count > 0) //TODO: find most matched rule to clarify error
             {
-                throw new Exception($"ERROR: Unparsed: {string.Join(",", tokens.ConvertAll(x => $"{x.TokenType}({x.TokenString})"))}");
+                throw new Exception($"Unparsed: {string.Join(",", tokens.ConvertAll(x => $"{x.TokenType}({x.TokenString})"))}");
             }
 
             return parsedInstruction;
@@ -203,8 +205,8 @@ namespace RiscA.Core.Asm
                 .withRd(tokens[pos + 1].intValue)
                 .withImm9(tokens[pos + 3].intValue);
 
-            if (imm9 < -512 || imm9 > 511)
-                throw new Exception($"Number should be -512 .. 511 for '{tokens[pos].TokenString} {tokens[pos + 1].TokenString}, {tokens[pos + 3].TokenString}'");
+            if (imm9 < -256 || imm9 > 255)
+                throw new Exception($"Number should be -256 .. 255 for '{tokens[pos].TokenString} {tokens[pos + 1].TokenString}, {tokens[pos + 3].TokenString}'");
 
             parsedInstruction.Instructions.Add(i);
             tokens.RemoveRange(pos, 5);
@@ -321,5 +323,12 @@ namespace RiscA.Core.Asm
             return tokens;
         }
 
+        //[TK.LITERAL], [TK.COLON]
+        static List<Token>? ExpLabel(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
+        {
+            parsedInstruction.Label = tokens[pos].TokenString;
+            tokens.RemoveRange(pos, 2);
+            return tokens;
+        }
     }
 }

@@ -2,7 +2,6 @@
 using RiscA.Core.Asm;
 using RiscA.Core.ISA;
 
-string[]? lines = null;
 string? filename = null;
 
 for(int i=0; i<args.Length; i++)
@@ -10,7 +9,6 @@ for(int i=0; i<args.Length; i++)
     if (args[i].Equals("-i") && args.Length > i + 1)
     {
         filename = args[i+1];
-        lines = File.ReadAllLines(filename);
     }
     if (args[i].StartsWith("-v"))
     {
@@ -19,32 +17,37 @@ for(int i=0; i<args.Length; i++)
     }
 }
 
-if(filename == null || lines == null)
+if(filename == null)
 {
     Console.WriteLine("Usage: rasm.exe -i filename.rasm");
     return -1;
 }
 
-for(int i=0; i<lines.Length; i++)
+Assembler asm = new Assembler(0);
+try
 {
-    try
+    asm.Compile(filename);
+}
+catch(Exception ex)
+{
+    Console.WriteLine($"ERROR: {ex.Message}");
+    return -1;
+}
+
+if (Verbose.AssemblerInstructions)
+{
+    foreach(SrcLine srcline in asm.Src)
     {
-        ParsedInstruction pi = Parser.ParseLine(lines[i]);
-        if (Verbose.AssemblerInstructions)
+        Console.WriteLine(srcline.Line);
+        if(srcline.ParsedInstruction is ParsedInstruction pi)
         {
-            Console.WriteLine($">{lines[i]}");
-            foreach (Instruction instr in pi.Instructions)
+            foreach (var (index, instr) in pi.Instructions.Index())
             {
-                Console.WriteLine($">>{instr}");
+                Console.WriteLine($"> 0x{(srcline.Address+index*2):X4} {instr}");
             }
         }
     }
-    catch(Exception ex)
-    {
-        Console.WriteLine($"ERROR: {filename}:{i}: {ex.Message}");
-        return -1;
-    }
-        
-}    
+}
+
 
 return 0;

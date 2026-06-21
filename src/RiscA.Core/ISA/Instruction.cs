@@ -118,9 +118,85 @@ namespace RiscA.Core.ISA
         public Instruction withImm8(int imm8) => new(Apply(imm8, MSK_IMM8));
         public Instruction withImm9(int imm9) => new(Apply(imm9, MSK_IMM9));
 
-        public void checkImmLimits(int imm, OpCode opcode)
+        public void CheckImmLimits(int imm)
         {
-            //TODO: implement
+            switch (OpCode)
+            {
+                case OpCode.ALU_REG_IMM:
+                    if (imm < 0 || imm > 127)
+                        throw new ArgumentOutOfRangeException(nameof(imm), imm, $"Immediate must be in range 0..127 for {OpCode}.");
+                    break;
+
+                case OpCode.REG_IMM:
+                    if (imm < 0 || imm > 255)
+                        throw new ArgumentOutOfRangeException(nameof(imm), imm, $"Immediate must be in range 0..255 for {OpCode}.");
+                    break;
+
+                case OpCode.ST_LD:
+                    if (imm < 0 || imm > 7)
+                        throw new ArgumentOutOfRangeException(nameof(imm), imm, $"Offset must be in range 0..7 for {OpCode}.");
+                    break;
+
+                case OpCode.BRANCH:
+                    if (imm < -64 || imm > 63)
+                        throw new ArgumentOutOfRangeException(nameof(imm), imm, $"Offset must be in range -64..63 for {OpCode}.");
+                    break;
+
+                case OpCode.LDI:
+                    if (imm < -256 || imm > 255)
+                        throw new ArgumentOutOfRangeException(nameof(imm), imm, $"Offset must be in range -256..255 for {OpCode}.");
+                    break;
+
+                case OpCode.CALL_JMP_RET:
+                    switch ((CallJmpRetFunc)Func2)
+                    {
+                        case CallJmpRetFunc.CALL_IMM:
+                        case CallJmpRetFunc.JR:
+                            if (imm < -1024 || imm > 1023)
+                                throw new ArgumentOutOfRangeException(nameof(imm), imm, $"Offset must be in range -1024..1023 for {OpCode}.");
+                            break;
+                        default:
+                            return;
+                    }
+                    break;
+
+                default:
+                    return;
+            }
+        }
+
+        public Instruction SetImm(int imm)
+        {
+            switch (OpCode)
+            {
+                case OpCode.ALU_REG_IMM:
+                    return this.withImm7(imm);
+
+                case OpCode.REG_IMM:
+                    return this.withImm8(imm);
+
+                case OpCode.ST_LD:
+                    return this.withImm3(imm);
+
+                case OpCode.BRANCH:
+                    return this.withImm7(imm);
+
+                case OpCode.LDI:
+                    return this.withImm9(imm);
+
+                case OpCode.CALL_JMP_RET:
+                    switch ((CallJmpRetFunc)Func2)
+                    {
+                        case CallJmpRetFunc.CALL_IMM:
+                        case CallJmpRetFunc.JR:
+                            return this.withRd(imm & 0b0000_1111).withImm7((imm >> 4) & 0b0111_1111);
+                        default:
+                            return this;
+                    }
+
+                default:
+                    return this;
+            }
         }
 
         public override string ToString() 

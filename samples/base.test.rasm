@@ -1,5 +1,9 @@
 
 ; some comment
-add r15, (-5+100*(-1))*-1
-add r15, -5-100*(-1)
-
+main:
+	add r15, (-5+100*(-1))*-1
+	add r15, -5-100*(-1)
+	movi r1, 5
+	sub r1,1
+	bnez r1, main
+	ret
