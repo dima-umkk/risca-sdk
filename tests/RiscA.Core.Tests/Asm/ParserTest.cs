@@ -178,6 +178,7 @@ namespace RiscA.Core.Tests.Asm
         [Theory]
         [InlineData("add r3, (-1)*-127", new int[] { 2, 3, 127 })]
         [InlineData("add r3, (-5+511*(-1))/(-5)", new int[] { 2, 3, 103 })]
+        [InlineData("add r3,  -5-100*(-1)", new int[] { 2, 3, 95 })]
         public void ParseExpressionTest(string line, int[] result)
         {
             Parser p = new Parser();

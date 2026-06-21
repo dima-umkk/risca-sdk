@@ -1,5 +1,6 @@
-﻿using RiscA.Core.ISA;
+using RiscA.Core.ISA;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Data;
 using System.Runtime.InteropServices;
@@ -23,8 +24,8 @@ namespace RiscA.Core.Asm
                 //Expressions
                 ([ [TK.LPAREN], [TK.NUMBER], [TK.RPAREN] ], ExpParen),
                 ([ [TK.NUMBER], [TK.ASTER, TK.SLASH], [TK.NUMBER] ], ExpMath),     // high precedence (*, /)
-                ([ [TK.NUMBER], [TK.MINUS], [TK.NUMBER] ], ExpMath),
                 ([ [TK.MINUS], [TK.NUMBER] ], ExpNegative),
+                ([ [TK.NUMBER], [TK.MINUS], [TK.NUMBER] ], ExpMath),
                 ([ [TK.NUMBER], [TK.PLUS], [TK.NUMBER] ], ExpMath),    
 
                 //Instructions
@@ -44,20 +45,13 @@ namespace RiscA.Core.Asm
         {
             List<Token> tokens = Tokenizer.tokenizeLine(filename, line, linePos);
             ParsedInstruction parsedInstruction = new ParsedInstruction();
-            //int pos = 0;
-            //List<Token> stack = new List<Token>();
-            //while (pos < tokens.Count)
-            //{
-            //    stack.Add(tokens[pos++]);
-            //    while (ProcessToken(stack, parsedInstruction))
-            //        ;
-            //}
-
             while (ProcessToken(tokens, parsedInstruction))
                 ;
 
             if (tokens.Count > 0) //TODO: find most matched rule to clarify error
-                throw new Exception($"Parse error: {filename}: line: {linePos}");
+            {
+                throw new Exception($"Parse error: {filename}: line: {linePos}: Unparsed: {string.Join(",", tokens.ConvertAll(x => $"{x.TokenType}({x.TokenString})"))}");
+            }
 
             return parsedInstruction;
         }
@@ -69,7 +63,7 @@ namespace RiscA.Core.Asm
                 var (pattern, handler) = rule;
                 if (pattern.Count > stack.Count)
                     continue;
-                for (int startPos = stack.Count - pattern.Count; startPos >= 0; startPos--)
+                for (int startPos = 0; startPos <= stack.Count - pattern.Count; startPos++)
                 {
                     bool ruleMatch = true;
                     for (int i = 0; i < pattern.Count; i++)

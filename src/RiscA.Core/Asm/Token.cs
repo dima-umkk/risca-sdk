@@ -127,7 +127,7 @@ namespace RiscA.Core.Asm
                     continue;
                 }
                 if (line[pos] == ';') // comment - skip rest of the line
-                    return tokens;
+                    break;
 
                 if (char.IsLetter(line[pos])) //read literal
                 {
