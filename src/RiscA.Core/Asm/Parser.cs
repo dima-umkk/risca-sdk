@@ -43,6 +43,7 @@ namespace RiscA.Core.Asm
                 ([ [TK.RET, TK.RETI], [TK.EOL] ], ParseRet),
                 ([ [TK.MOV], [TK.REG], [TK.COMMA], [TK.EPC], [TK.EOL] ], ParseEPC),
                 ([ [TK.MOV], [TK.EPC], [TK.COMMA], [TK.REG], [TK.EOL] ], ParseEPC),
+                ([ [TK.NOP], [TK.EOL] ], ParseNop),
 
                 //Skip rules
                 ([ [TK.EOL] ], Skip), //empty line
@@ -57,7 +58,7 @@ namespace RiscA.Core.Asm
 
             if (tokens.Count > 0) //TODO: find most matched rule to clarify error
             {
-                throw new Exception($"Unparsed: {string.Join(",", tokens.ConvertAll(x => $"{x.TokenType}({x.TokenString})"))}");
+                throw new Exception($"Syntax error: {string.Join(",", tokens.ConvertAll(x => $"{x.TokenType}({x.TokenString})"))}");
             }
 
             return parsedInstruction;
@@ -281,6 +282,20 @@ namespace RiscA.Core.Asm
 
             parsedInstruction.Instructions.Add(i);
             tokens.RemoveRange(pos, 5);
+            return tokens;
+        }
+
+        //[TK.NOP], [TK.EOL]
+        static List<Token>? ParseNop(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
+        {
+            var i = new Instruction(0)
+                .withOpCode(OpCode.ALU_REG_REG)
+                .withFunc2((int)ALUFunc.MOV)
+                .withRd(0)
+                .withRs(0);
+
+            parsedInstruction.Instructions.Add(i);
+            tokens.RemoveRange(pos, 2);
             return tokens;
         }
 

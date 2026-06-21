@@ -6,4 +6,13 @@ main:
 	movi r1, 5
 	sub r1,1
 	bnez r1, main
+	movi r0, 10
+	call loop
+	ret
+	jr main
+
+	nop
+loop:
+	sub r0, 1
+	bnez r0, loop
 	ret

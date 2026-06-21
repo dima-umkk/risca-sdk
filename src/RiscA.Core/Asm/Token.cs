@@ -52,6 +52,7 @@ namespace RiscA.Core.Asm
         INT,
         RETI,
         EPC,
+        NOP,
     }
 
     public record struct Token(TK TokenType, string TokenString, int TokenPos, int intValue = 0, string? strValue = null);
@@ -112,6 +113,8 @@ namespace RiscA.Core.Asm
             {"int", TK.INT },
             {"reti", TK.RETI },
             {"epc", TK.EPC },
+
+            {"nop", TK.NOP },
         };
 
         private static bool IsHexDigit(char c) =>

@@ -6,28 +6,28 @@ namespace RiscA.Core.ISA
 {
     public enum ALUFunc : byte
     {
-        Mov = 0,
-        Add = 1,
-        Sub = 2,
-        And = 3,
-        Or = 4,
-        Xor = 5,
-        Not = 6,
-        Mul = 7,
+        MOV = 0,
+        ADD = 1,
+        SUB = 2,
+        AND = 3,
+        OR = 4,
+        XOR = 5,
+        NOT = 6,
+        MUL = 7,
     }
 
     public enum ALUImmFunc : byte
     {
-        Shl = 0,
-        Shr = 1,
-        Add = 2,
-        Sub = 3,
+        SHL = 0,
+        SHR = 1,
+        ADD = 2,
+        SUB = 3,
     }
 
     public enum RegImmFunc : byte
     {
-        MovI = 0,
-        MovL = 1,
+        MOVI = 0,
+        MOVL = 1,
     }
 
     public enum LdStFunc : byte
@@ -107,6 +107,7 @@ namespace RiscA.Core.ISA
         public int Imm7s => GetSigned(MSK_IMM7, 7);
         public int Imm8 => Get(MSK_IMM8);
         public int Imm9 => GetSigned(MSK_IMM9, 9);
+        public int ImmCallJr => (Imm7s << 4) | Rd;
         public Instruction withOpCode(OpCode opcode) => new(Apply((int)opcode, MSK_OPCODE));
         public Instruction withRd(int rd) => new(Apply(rd, MSK_RD));
         public Instruction withRs(int rs) => new(Apply(rs, MSK_RS));
@@ -189,7 +190,7 @@ namespace RiscA.Core.ISA
         {
             return OpCode switch
             {
-                OpCode.ALU_REG_REG => $"{(ALUFunc)Func3} R{Rd}, R{Rs} (0x{_raw:X4})",
+                OpCode.ALU_REG_REG => Rd == 0 && Rs == 0 ? $"NOP (0x{_raw:X4})" : $"{(ALUFunc)Func3} R{Rd}, R{Rs} (0x{_raw:X4})",
                 OpCode.ALU_REG_IMM => $"{(ALUImmFunc)Func2} R{Rd}, {Imm7} (0x{_raw:X4})",
                 OpCode.REG_IMM => $"{(RegImmFunc)Func1} R{Rd}, {Imm8} (0x{_raw:X4})",
                 OpCode.ST_LD => $"{(LdStFunc)Func21}{(LdStBWFunc)Func22} R{Rd}, [R{Rs}+{Imm3}] (0x{_raw:X4})",
@@ -197,11 +198,11 @@ namespace RiscA.Core.ISA
                 OpCode.LDI => $"LDI R{Rd}, [{Imm9}] (0x{_raw:X4})",
                 OpCode.CALL_JMP_RET => (CallJmpRetFunc)Func2 switch
                 {
-                    CallJmpRetFunc.CALL_IMM => $"CALL {(Imm7s<<4) | Rd} (0x{_raw:X4})",
+                    CallJmpRetFunc.CALL_IMM => $"CALL {ImmCallJr} (0x{_raw:X4})",
                     CallJmpRetFunc.CALL_REG => $"CALL R{Rd} (0x{_raw:X4})",
                     CallJmpRetFunc.RET when Rd == 14 => $"RET (0x{_raw:X4})",
                     CallJmpRetFunc.RET when Rd != 14 => $"JMP R{Rd} (0x{_raw:X4})",
-                    CallJmpRetFunc.JR => $"JR {(Imm7s << 4) | Rd} (0x{_raw:X4})",
+                    CallJmpRetFunc.JR => $"JR {ImmCallJr} (0x{_raw:X4})",
                     _ => throw new NotImplementedException(),
                 },
                 OpCode.INT_RETI => Func2 switch

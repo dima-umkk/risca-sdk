@@ -45,7 +45,7 @@ namespace RiscA.Core.Asm
                 }
                 catch (Exception ex)
                 {
-                    throw new Exception($"{filename}:{i}: {ex.Message}");
+                    throw new Exception($"{filename}:{i+1}: {ex.Message}");
                 }
             }
 
@@ -57,7 +57,7 @@ namespace RiscA.Core.Asm
                     SrcLine? refline;
                     if (!labelMap.TryGetValue(reflabel, out refline))
                     {
-                        throw new Exception($"{src[i].Filename}: {src[i].Pos}: Unknonw label {reflabel}");
+                        throw new Exception($"{src[i].Filename}: {src[i].Pos+1}: Unknonw label '{reflabel}'");
                     }
                     int refbytes = refline.Address - src[i].Address;
                     int refinstr = refbytes >> 1;
@@ -65,7 +65,7 @@ namespace RiscA.Core.Asm
                     int imm = pi.Instructions[0].OpCode == ISA.OpCode.CALL_JMP_RET ? refwords : refinstr;
                     if(pi.Instructions[0].OpCode == ISA.OpCode.CALL_JMP_RET && (refbytes & 0b0000_0011) != 0)
                     {
-                        throw new Exception($"{src[i].Filename}: {src[i].Pos}: Call {reflabel} is not word aligned!");
+                        throw new Exception($"{src[i].Filename}: {refline.Pos+1}: '{reflabel}' is not word aligned!");
                     }
                     try
                     {
@@ -73,7 +73,7 @@ namespace RiscA.Core.Asm
                     }
                     catch(Exception ex)
                     {
-                        throw new Exception($"{src[i].Filename}: {src[i].Pos}: Reference address to far ({imm})! {ex.Message}");
+                        throw new Exception($"{src[i].Filename}: {src[i].Pos+1}: Reference address to far ({imm})! {ex.Message}");
                     }
                     pi.Instructions[0] = pi.Instructions[0].SetImm(imm);
                 }
