@@ -123,51 +123,22 @@ namespace RiscA.Core.ISA
 
         public void CheckImmLimits(int imm)
         {
-            switch (OpCode)
+            if (OpCode == OpCode.CALL_JMP_RET && (CallJmpRetFunc)Func2 is not (CallJmpRetFunc.CALL_IMM or CallJmpRetFunc.JR))
+                return;
+
+            var (min, max, name) = OpCode switch
             {
-                case OpCode.ALU_REG_IMM:
-                    if ((ALUImmFunc)Func2 == ALUImmFunc.SHR || (ALUImmFunc)Func2 == ALUImmFunc.SHL)
-                    {
-                        if (imm < 0 || imm > 32)
-                            throw new ArgumentOutOfRangeException(nameof(imm), imm, $"Immediate must be in range 0 .. 32 for {OpCode}.");
-                    }
-                    else
-                    {
-                        if (imm < 0 || imm > 127)
-                            throw new ArgumentOutOfRangeException(nameof(imm), imm, $"Immediate must be in range 0 .. 127 for {OpCode}.");
-                    }
-                    break;
-                case OpCode.REG_IMM:
-                    if (imm < 0 || imm > 255)
-                        throw new ArgumentOutOfRangeException(nameof(imm), imm, $"Immediate must be in range 0 .. 255 for {OpCode}.");
-                    break;
-                case OpCode.ST_LD:
-                    if (imm < 0 || imm > 7)
-                        throw new ArgumentOutOfRangeException(nameof(imm), imm, $"Offset must be in range 0 .. 7 for {OpCode}.");
-                    break;
-                case OpCode.BRANCH:
-                    if (imm < -64 || imm > 63)
-                        throw new ArgumentOutOfRangeException(nameof(imm), imm, $"Offset must be in range -64 .. 63 for {OpCode}.");
-                    break;
-                case OpCode.LDI:
-                    if (imm < -256 || imm > 255)
-                        throw new ArgumentOutOfRangeException(nameof(imm), imm, $"Offset must be in range -256 .. 255 for {OpCode}.");
-                    break;
-                case OpCode.CALL_JMP_RET:
-                    switch ((CallJmpRetFunc)Func2)
-                    {
-                        case CallJmpRetFunc.CALL_IMM:
-                        case CallJmpRetFunc.JR:
-                            if (imm < -1024 || imm > 1023)
-                                throw new ArgumentOutOfRangeException(nameof(imm), imm, $"Offset must be in range -1024 .. 1023 for {OpCode}.");
-                            break;
-                        default:
-                            return;
-                    }
-                    break;
-                default:
-                    return;
-            }
+                OpCode.ALU_REG_IMM when (ALUImmFunc)Func2 is ALUImmFunc.SHL or ALUImmFunc.SHR => (0, 32, "Immediate"),
+                OpCode.ALU_REG_IMM => (0, 127, "Immediate"),
+                OpCode.REG_IMM => (0, 255, "Immediate"),
+                OpCode.ST_LD => (0, 7, "Offset"),
+                OpCode.BRANCH => (-64, 63, "Offset"),
+                OpCode.LDI => (-256, 255, "Offset"),
+                OpCode.CALL_JMP_RET => (-1024, 1023, "Offset"),
+                _ => (0, -1, ""),
+            };
+            if (min <= max && (imm < min || imm > max))
+                throw new ArgumentOutOfRangeException(nameof(imm), imm, $"{name} must be in range {min} .. {max} for {OpCode}.");
         }
 
         public Instruction SetImm(int imm)

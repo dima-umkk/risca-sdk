@@ -53,43 +53,40 @@ namespace RiscA.Core.Asm
             //2nd pass: process labels
             for (int i = 0; i < src.Count; i++)
             {
-                if (src[i].ParsedInstruction is ParsedInstruction pi && pi.IsDW && pi.RefLabel is string reflabel)
+                if (src[i].ParsedInstruction is ParsedInstruction pi && pi.RefLabel is string reflabel)
                 {
                     SrcLine? refline;
                     if (!labelMap.TryGetValue(reflabel, out refline))
                     {
                         throw new Exception($"{src[i].Filename}: {src[i].Pos + 1}: Unknown label '{reflabel}'");
                     }
-                    int addr = refline.Address;
-                    pi.Instructions[0] = new Instruction(unchecked((ushort)(addr & 0xFFFF)));
-                    pi.Instructions[1] = new Instruction(unchecked((ushort)((addr >> 16) & 0xFFFF)));
+                    if (pi.IsDW)
+                    {
+                        int addr = refline.Address;
+                        pi.Instructions[0] = new Instruction(unchecked((ushort)(addr & 0xFFFF)));
+                        pi.Instructions[1] = new Instruction(unchecked((ushort)((addr >> 16) & 0xFFFF)));
+                    }
+                    else
+                    {
+                        int refbytes = refline.Address - src[i].Address;
+                        int refinstr = refbytes >> 1;
+                        int refwords = (refline.Address >> 2) - (src[i].Address >> 2);
+                        int imm = pi.Instructions[0].OpCode == ISA.OpCode.CALL_JMP_RET ? refwords : refinstr;
+                        if (pi.Instructions[0].OpCode == ISA.OpCode.CALL_JMP_RET && (refline.Address & 0b0000_0011) != 0)
+                        {
+                            throw new Exception($"{src[i].Filename}: {refline.Pos + 1}: '{reflabel}' is not word aligned!");
+                        }
+                        try
+                        {
+                            pi.Instructions[0].CheckImmLimits(imm);
+                        }
+                        catch (Exception ex)
+                        {
+                            throw new Exception($"{src[i].Filename}: {src[i].Pos + 1}: Reference address to far ({imm})! {ex.Message}");
+                        }
+                        pi.Instructions[0] = pi.Instructions[0].SetImm(imm);
+                    }
                 }
-                else if (src[i].ParsedInstruction is ParsedInstruction pi2 && pi2.RefLabel is string reflabel2)
-                {
-                    SrcLine? refline;
-                    if (!labelMap.TryGetValue(reflabel2, out refline))
-                    {
-                        throw new Exception($"{src[i].Filename}: {src[i].Pos+1}: Unknown label '{reflabel2}'");
-                    }
-                    int refbytes = refline.Address - src[i].Address;
-                    int refinstr = refbytes >> 1;
-                    int refwords = (refline.Address >> 2) - (src[i].Address >> 2);
-                    int imm = pi2.Instructions[0].OpCode == ISA.OpCode.CALL_JMP_RET ? refwords : refinstr;
-                    if(pi2.Instructions[0].OpCode == ISA.OpCode.CALL_JMP_RET && (refline.Address & 0b0000_0011) != 0)
-                    {
-                        throw new Exception($"{src[i].Filename}: {refline.Pos+1}: '{reflabel2}' is not word aligned!");
-                    }
-                    try
-                    {
-                        pi2.Instructions[0].CheckImmLimits(imm);
-                    }
-                    catch(Exception ex)
-                    {
-                        throw new Exception($"{src[i].Filename}: {src[i].Pos+1}: Reference address to far ({imm})! {ex.Message}");
-                    }
-                    pi2.Instructions[0] = pi2.Instructions[0].SetImm(imm);
-                }
-
             }
         }
     }
