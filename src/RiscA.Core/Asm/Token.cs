@@ -53,6 +53,9 @@ namespace RiscA.Core.Asm
         RETI,
         EPC,
         NOP,
+        DB,
+        DW,
+        STRING,
     }
 
     public record struct Token(TK TokenType, string TokenString, int TokenPos, int intValue = 0, string? strValue = null);
@@ -115,6 +118,8 @@ namespace RiscA.Core.Asm
             {"epc", TK.EPC },
 
             {"nop", TK.NOP },
+            {"db", TK.DB },
+            {"dw", TK.DW },
         };
 
         private static bool IsHexDigit(char c) =>
@@ -145,7 +150,7 @@ namespace RiscA.Core.Asm
                             break;
                         endpos++;
                     }
-                    string tokenString = line.Substring(pos, endpos - pos);
+                    string tokenString = line[pos..endpos];
                     //try to check literal tokens
                     if (literalToTokenType.ContainsKey(tokenString.ToLower()))
                     {
@@ -183,8 +188,8 @@ namespace RiscA.Core.Asm
                                 endpos++;
                             if (endpos == pos)
                                 throw new Exception($"Syntax error {pos}: expected hex digits after 0x '{line[pos]}'");
-                            intVal = unchecked((int)Convert.ToUInt32(line.Substring(pos, endpos - pos), 16));
-                            tokens.Add(new Token(TK.NUMBER, line.Substring(start, endpos - start), start, intVal));
+                            intVal = unchecked((int)Convert.ToUInt32(line[pos..endpos], 16));
+                            tokens.Add(new Token(TK.NUMBER, line[start..endpos], start, intVal));
                             pos = endpos;
                             continue;
                         }
@@ -197,8 +202,8 @@ namespace RiscA.Core.Asm
                                 endpos++;
                             if (endpos == pos)
                                 throw new Exception($"Syntax error {pos}: expected binary digits after 0b '{line[pos]}'");
-                            intVal = unchecked((int)Convert.ToUInt32(line.Substring(pos, endpos - pos), 2));
-                            tokens.Add(new Token(TK.NUMBER, line.Substring(start, endpos - start), start, intVal));
+                            intVal = unchecked((int)Convert.ToUInt32(line[pos..endpos], 2));
+                            tokens.Add(new Token(TK.NUMBER, line[start..endpos], start, intVal));
                             pos = endpos;
                             continue;
                         }
@@ -212,7 +217,7 @@ namespace RiscA.Core.Asm
                             break;
                         endpos++;
                     }
-                    tokenString = line.Substring(pos, endpos - pos);
+                    tokenString = line[pos..endpos];
                     if (!int.TryParse(tokenString, out intVal))
                         throw new Exception($"Syntax error {pos}: failed to parse number '{line[pos]}'");
                     tokens.Add(new Token(TK.NUMBER, tokenString, pos, intVal));
@@ -277,6 +282,21 @@ namespace RiscA.Core.Asm
                 {
                     tokens.Add(new Token(TK.COLON, ":", pos));
                     pos++;
+                    continue;
+                }
+                else if (line[pos] == '\'')
+                {
+                    int start = pos;
+                    pos++;
+                    int endpos = pos;
+                    while (endpos < line.Length && line[endpos] != '\'')
+                        endpos++;
+                    if (endpos >= line.Length)
+                        throw new Exception($"Syntax error {pos}: unterminated string literal");
+                    string content = line[pos..endpos];
+                    string tokenString = line.Substring(start, endpos - start + 1);
+                    tokens.Add(new Token(TK.STRING, tokenString, start, strValue: content));
+                    pos = endpos + 1;
                     continue;
                 }
                 //no rules found - error

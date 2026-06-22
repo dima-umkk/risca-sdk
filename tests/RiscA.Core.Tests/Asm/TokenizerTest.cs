@@ -69,5 +69,58 @@ namespace RiscA.Core.Tests.Asm
                 tokens[i].TokenString.Should().Be(expect);
             }
         }
+
+        [Theory]
+        [InlineData("db 'hello'", new string[] { "db", "'hello'", "{EOL}" })]
+        [InlineData("db ''", new string[] { "db", "''", "{EOL}" })]
+        [InlineData("db 'a b'", new string[] { "db", "'a b'", "{EOL}" })]
+        public void testTokenizerStringTokenStrings(string line, string[] result)
+        {
+            var tokens = Tokenizer.tokenizeLine(line);
+            tokens.Should().NotBeEmpty();
+            tokens.Should().HaveCount(result.Length);
+            for (int i = 0; i < result.Length; i++)
+            {
+                string expect = result[i];
+                tokens[i].TokenString.Should().Be(expect);
+            }
+        }
+
+        [Theory]
+        [InlineData("db 'hello'", new TK[] { TK.DB, TK.STRING, TK.EOL })]
+        [InlineData("db ''", new TK[] { TK.DB, TK.STRING, TK.EOL })]
+        public void testTokenizerStringTokenTypes(string line, TK[] result)
+        {
+            var tokens = Tokenizer.tokenizeLine(line);
+            tokens.Should().NotBeEmpty();
+            tokens.Should().HaveCount(result.Length);
+            for (int i = 0; i < result.Length; i++)
+            {
+                TK expect = result[i];
+                tokens[i].TokenType.Should().Be(expect);
+            }
+        }
+
+        [Theory]
+        [InlineData("db 'hello'", "hello")]
+        [InlineData("db ''", "")]
+        [InlineData("db 'a b'", "a b")]
+        [InlineData("db '  '", "  ")]
+        public void testTokenizerStringStrValue(string line, string expected)
+        {
+            var tokens = Tokenizer.tokenizeLine(line);
+            tokens.Should().NotBeEmpty();
+            var stringToken = tokens.First(t => t.TokenType == TK.STRING);
+            stringToken.strValue.Should().Be(expected);
+        }
+
+        [Theory]
+        [InlineData("db 'hello")]
+        [InlineData("db '")]
+        public void testTokenizerUnterminatedString(string line)
+        {
+            Action act = () => Tokenizer.tokenizeLine(line);
+            act.Should().Throw<Exception>().WithMessage("*unterminated string literal*");
+        }
     }
 }
