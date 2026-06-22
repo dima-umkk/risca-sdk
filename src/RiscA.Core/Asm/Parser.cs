@@ -60,7 +60,6 @@ namespace RiscA.Core.Asm
             {
                 throw new Exception($"Syntax error: {string.Join(",", tokens.ConvertAll(x => $"{x.TokenType}({x.TokenString})"))}");
             }
-
             return parsedInstruction;
         }
 
@@ -123,10 +122,7 @@ namespace RiscA.Core.Asm
                 .withFunc2(rule[0].IndexOf(tokens[pos].TokenType))
                 .withRd(tokens[pos + 1].intValue)
                 .withImm7(tokens[pos + 3].intValue);
-            if ((i.Func2 == 0 || i.Func2 == 1) && (tokens[pos + 3].intValue < 0 || tokens[pos + 3].intValue > 32))
-                throw new Exception($"Number should be 0 .. 32 for {tokens[pos].TokenString} {tokens[pos + 1].TokenString}, {tokens[pos + 3].TokenString}");
-            if ((i.Func2 == 2 || i.Func2 == 3) && (tokens[pos + 3].intValue < 0 || tokens[pos + 3].intValue > 127))
-                throw new Exception($"Number should be 0 .. 127 for {tokens[pos].TokenString} {tokens[pos + 1].TokenString}, {tokens[pos + 3].TokenString}");
+            i.CheckImmLimits(tokens[pos + 3].intValue);
             parsedInstruction.Instructions.Add(i);
             tokens.RemoveRange(pos, 5);
             return tokens;
@@ -139,8 +135,7 @@ namespace RiscA.Core.Asm
                 .withFunc1(rule[0].IndexOf(tokens[pos].TokenType))
                 .withRd(tokens[pos + 1].intValue)
                 .withImm8(tokens[pos + 3].intValue);
-            if (tokens[pos + 3].intValue > 255)
-                throw new Exception($"Number should be <= 255 for {tokens[pos].TokenString} {tokens[pos + 1].TokenString}, {tokens[pos + 3].TokenString}");
+            i.CheckImmLimits(tokens[pos + 3].intValue);
             parsedInstruction.Instructions.Add(i);
             tokens.RemoveRange(pos, 5);
             return tokens;
@@ -154,8 +149,7 @@ namespace RiscA.Core.Asm
                 .withRd(tokens[pos + 1].intValue)
                 .withRs(tokens[pos + 4].intValue)
                 .withImm3(tokens[pos + 6].intValue);
-            if (tokens[pos + 6].intValue < 0 || tokens[pos + 6].intValue > 7)
-                throw new Exception($"Number should be 0 .. 7 for '{tokens[pos].TokenString} {tokens[pos + 1].TokenString}, [{tokens[pos + 4].TokenString} + {tokens[pos + 6].intValue}]'");
+            i.CheckImmLimits(tokens[pos + 6].intValue);
             parsedInstruction.Instructions.Add(i);
             tokens.RemoveRange(pos, 9);
             return tokens;
@@ -170,8 +164,7 @@ namespace RiscA.Core.Asm
                 .withRd(tokens[pos + 7].intValue)
                 .withRs(tokens[pos + 2].intValue)
                 .withImm3(tokens[pos + 4].intValue);
-            if (tokens[pos + 4].intValue < 0 || tokens[pos + 4].intValue > 7)
-                throw new Exception($"Number should be 0 .. 7 for '{tokens[pos].TokenString} {tokens[pos + 1].TokenString}, [{tokens[pos + 4].TokenString} + {tokens[pos + 6].intValue}]'");
+            i.CheckImmLimits(tokens[pos + 4].intValue);
             parsedInstruction.Instructions.Add(i);
             tokens.RemoveRange(pos, 9);
             return tokens;
@@ -188,9 +181,7 @@ namespace RiscA.Core.Asm
                 .withRd(tokens[pos + 1].intValue)
                 .withImm7(imm7);
 
-            if (imm7 < -64 || imm7 > 63)
-                throw new Exception($"Number should be -64 .. 63 for '{tokens[pos].TokenString} {tokens[pos + 1].TokenString}, {tokens[pos + 3].TokenString}'");
-
+            i.CheckImmLimits(imm7);
             parsedInstruction.Instructions.Add(i);
             tokens.RemoveRange(pos, 5);
             return tokens;
@@ -205,10 +196,7 @@ namespace RiscA.Core.Asm
                 .withOpCode(OpCode.LDI)
                 .withRd(tokens[pos + 1].intValue)
                 .withImm9(tokens[pos + 3].intValue);
-
-            if (imm9 < -256 || imm9 > 255)
-                throw new Exception($"Number should be -256 .. 255 for '{tokens[pos].TokenString} {tokens[pos + 1].TokenString}, {tokens[pos + 3].TokenString}'");
-
+            i.CheckImmLimits(imm9);
             parsedInstruction.Instructions.Add(i);
             tokens.RemoveRange(pos, 5);
             return tokens;
@@ -228,10 +216,8 @@ namespace RiscA.Core.Asm
                 .withFunc2(tokens[pos].TokenType == TK.JR ? 3 : 0)
                 .withRd(rd)
                 .withImm7(imm7);
-
-            if (tokens[pos + 1].TokenType == TK.NUMBER && (refaddr < -1024 || refaddr > 1023))
-                throw new Exception($"Number should be -1024 .. 1023 for '{tokens[pos].TokenString} {tokens[pos + 1].TokenString}'");
-
+            if (tokens[pos + 1].TokenType == TK.NUMBER)
+                i.CheckImmLimits(refaddr);
             parsedInstruction.Instructions.Add(i);
             tokens.RemoveRange(pos, 3);
             return tokens;
@@ -252,7 +238,6 @@ namespace RiscA.Core.Asm
                 .withFunc2(func2)
                 .withRd(tokens[pos + 1].intValue);
             ;
-
             parsedInstruction.Instructions.Add(i);
             tokens.RemoveRange(pos, 3);
             return tokens;
@@ -265,7 +250,6 @@ namespace RiscA.Core.Asm
                 .withOpCode(tokens[pos].TokenType == TK.RETI ? OpCode.INT_RETI : OpCode.CALL_JMP_RET)
                 .withFunc2(tokens[pos].TokenType == TK.RETI ? 1 : 2)
                 .withRd(tokens[pos].TokenType == TK.RETI ? 0 : 14); //R14 link register
-
             parsedInstruction.Instructions.Add(i);
             tokens.RemoveRange(pos, 2);
             return tokens;
@@ -279,7 +263,6 @@ namespace RiscA.Core.Asm
                 .withOpCode(OpCode.INT_RETI)
                 .withFunc2(tokens[pos + 1].TokenType == TK.REG ? 2 : 3)
                 .withRd(tokens[pos+1].TokenType == TK.REG ? tokens[pos + 1].intValue : tokens[pos + 3].intValue); //R14 link register
-
             parsedInstruction.Instructions.Add(i);
             tokens.RemoveRange(pos, 5);
             return tokens;
@@ -293,7 +276,6 @@ namespace RiscA.Core.Asm
                 .withFunc2((int)ALUFunc.MOV)
                 .withRd(0)
                 .withRs(0);
-
             parsedInstruction.Instructions.Add(i);
             tokens.RemoveRange(pos, 2);
             return tokens;
@@ -303,7 +285,6 @@ namespace RiscA.Core.Asm
         {
             int a = tokens[pos + 0].intValue;
             int b = tokens[pos + 2].intValue;
-
             int c = tokens[pos + 1].TokenType switch
             {
                 TK.PLUS => a + b,
@@ -329,7 +310,6 @@ namespace RiscA.Core.Asm
         {
             if (pos > 0 && tokens[pos - 1].TokenType is TK.NUMBER or TK.RPAREN)
                 return null;
-
             Token number = tokens[pos + 1];
             number.intValue = 0 - number.intValue;
             number.TokenString = number.intValue.ToString();

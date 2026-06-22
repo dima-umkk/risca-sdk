@@ -36,29 +36,45 @@ catch(Exception ex)
 
 if (Verbose.AssemblerInstructions)
 {
+    int binsize = 0;
     foreach(SrcLine srcline in asm.Src)
     {
-        Console.WriteLine($"> {srcline.Line}");
         if(srcline.ParsedInstruction is ParsedInstruction pi)
         {
-            foreach (var (index, instr) in pi.Instructions.Index())
+            if (pi.Instructions.Count == 0)
             {
-                int instraddr = srcline.Address + index * 2;
-                string refaddr = instr.OpCode switch
+                Console.WriteLine($"                                     {srcline.Line}");
+            }
+            else
+            {    
+                foreach (var (index, instr) in pi.Instructions.Index())
                 {
-                    OpCode.BRANCH => $" -> 0x{(instraddr + instr.Imm7s*2):X4}",
-                    OpCode.LDI => $" -> 0x{(instraddr + instr.Imm9*2):X4}",
-                    OpCode.CALL_JMP_RET => (CallJmpRetFunc)instr.Func2 switch
+                    int instraddr = srcline.Address + index * 2;
+                    string refaddr = instr.OpCode switch
                     {
-                        CallJmpRetFunc.CALL_IMM or CallJmpRetFunc.JR => $" -> 0x{(instraddr + instr.ImmCallJr * 4):X4}",
+                        OpCode.BRANCH => $" ({(instraddr + instr.Imm7s * 2):X4})",
+                        OpCode.LDI => $" ({(instraddr + instr.Imm9 * 2):X4})",
+                        OpCode.CALL_JMP_RET => (CallJmpRetFunc)instr.Func2 switch
+                        {
+                            CallJmpRetFunc.CALL_IMM or CallJmpRetFunc.JR => $" ({(instraddr + instr.ImmCallJr * 4):X4})",
+                            _ => ""
+                        },
                         _ => ""
-                    },
-                    _ => ""
-                };
-                Console.WriteLine($"0x{instraddr:X4} {instr} {refaddr}");
+                    };
+                    string sourcecode = index switch
+                    {
+                        0 => srcline.Line,
+                        _ => "",
+                    };
+                    string instrstr = instr.ToString();
+                    string instrtrim = new string(' ', Math.Max(1, 15 - refaddr.Length - instrstr.Length));
+                    Console.WriteLine($"0x{instraddr:X8} {instr.Raw:X4}  {instrstr}{refaddr}{instrtrim}{sourcecode}");
+                    binsize += 2;
+                }
             }
         }
     }
+    Console.WriteLine($"\nBinary size: {binsize} bytes.");
 }
 
 

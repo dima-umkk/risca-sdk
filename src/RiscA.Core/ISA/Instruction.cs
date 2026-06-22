@@ -126,43 +126,45 @@ namespace RiscA.Core.ISA
             switch (OpCode)
             {
                 case OpCode.ALU_REG_IMM:
-                    if (imm < 0 || imm > 127)
-                        throw new ArgumentOutOfRangeException(nameof(imm), imm, $"Immediate must be in range 0..127 for {OpCode}.");
+                    if ((ALUImmFunc)Func2 == ALUImmFunc.SHR || (ALUImmFunc)Func2 == ALUImmFunc.SHL)
+                    {
+                        if (imm < 0 || imm > 32)
+                            throw new ArgumentOutOfRangeException(nameof(imm), imm, $"Immediate must be in range 0 .. 32 for {OpCode}.");
+                    }
+                    else
+                    {
+                        if (imm < 0 || imm > 127)
+                            throw new ArgumentOutOfRangeException(nameof(imm), imm, $"Immediate must be in range 0 .. 127 for {OpCode}.");
+                    }
                     break;
-
                 case OpCode.REG_IMM:
                     if (imm < 0 || imm > 255)
-                        throw new ArgumentOutOfRangeException(nameof(imm), imm, $"Immediate must be in range 0..255 for {OpCode}.");
+                        throw new ArgumentOutOfRangeException(nameof(imm), imm, $"Immediate must be in range 0 .. 255 for {OpCode}.");
                     break;
-
                 case OpCode.ST_LD:
                     if (imm < 0 || imm > 7)
-                        throw new ArgumentOutOfRangeException(nameof(imm), imm, $"Offset must be in range 0..7 for {OpCode}.");
+                        throw new ArgumentOutOfRangeException(nameof(imm), imm, $"Offset must be in range 0 .. 7 for {OpCode}.");
                     break;
-
                 case OpCode.BRANCH:
                     if (imm < -64 || imm > 63)
-                        throw new ArgumentOutOfRangeException(nameof(imm), imm, $"Offset must be in range -64..63 for {OpCode}.");
+                        throw new ArgumentOutOfRangeException(nameof(imm), imm, $"Offset must be in range -64 .. 63 for {OpCode}.");
                     break;
-
                 case OpCode.LDI:
                     if (imm < -256 || imm > 255)
-                        throw new ArgumentOutOfRangeException(nameof(imm), imm, $"Offset must be in range -256..255 for {OpCode}.");
+                        throw new ArgumentOutOfRangeException(nameof(imm), imm, $"Offset must be in range -256 .. 255 for {OpCode}.");
                     break;
-
                 case OpCode.CALL_JMP_RET:
                     switch ((CallJmpRetFunc)Func2)
                     {
                         case CallJmpRetFunc.CALL_IMM:
                         case CallJmpRetFunc.JR:
                             if (imm < -1024 || imm > 1023)
-                                throw new ArgumentOutOfRangeException(nameof(imm), imm, $"Offset must be in range -1024..1023 for {OpCode}.");
+                                throw new ArgumentOutOfRangeException(nameof(imm), imm, $"Offset must be in range -1024 .. 1023 for {OpCode}.");
                             break;
                         default:
                             return;
                     }
                     break;
-
                 default:
                     return;
             }
@@ -190,27 +192,27 @@ namespace RiscA.Core.ISA
         {
             return OpCode switch
             {
-                OpCode.ALU_REG_REG => Rd == 0 && Rs == 0 ? $"NOP (0x{_raw:X4})" : $"{(ALUFunc)Func3} R{Rd}, R{Rs} (0x{_raw:X4})",
-                OpCode.ALU_REG_IMM => $"{(ALUImmFunc)Func2} R{Rd}, {Imm7} (0x{_raw:X4})",
-                OpCode.REG_IMM => $"{(RegImmFunc)Func1} R{Rd}, {Imm8} (0x{_raw:X4})",
-                OpCode.ST_LD => $"{(LdStFunc)Func21}{(LdStBWFunc)Func22} R{Rd}, [R{Rs}+{Imm3}] (0x{_raw:X4})",
-                OpCode.BRANCH => $"{(BranchFunc)Func2} R{Rd}, {Imm7s} (0x{_raw:X4})",
-                OpCode.LDI => $"LDI R{Rd}, [{Imm9}] (0x{_raw:X4})",
+                OpCode.ALU_REG_REG => Rd == 0 && Rs == 0 ? $"NOP" : $"{(ALUFunc)Func3}  R{Rd}, R{Rs}",
+                OpCode.ALU_REG_IMM => $"{(ALUImmFunc)Func2}  R{Rd}, {Imm7}",
+                OpCode.REG_IMM => $"{(RegImmFunc)Func1} R{Rd}, {Imm8}",
+                OpCode.ST_LD => $"{(LdStFunc)Func21}{(LdStBWFunc)Func22}  R{Rd}, [R{Rs}+{Imm3}]",
+                OpCode.BRANCH => $"{(BranchFunc)Func2} R{Rd}, {Imm7s}",
+                OpCode.LDI => $"LDI  R{Rd}, [{Imm9}]",
                 OpCode.CALL_JMP_RET => (CallJmpRetFunc)Func2 switch
                 {
-                    CallJmpRetFunc.CALL_IMM => $"CALL {ImmCallJr} (0x{_raw:X4})",
-                    CallJmpRetFunc.CALL_REG => $"CALL R{Rd} (0x{_raw:X4})",
-                    CallJmpRetFunc.RET when Rd == 14 => $"RET (0x{_raw:X4})",
-                    CallJmpRetFunc.RET when Rd != 14 => $"JMP R{Rd} (0x{_raw:X4})",
-                    CallJmpRetFunc.JR => $"JR {ImmCallJr} (0x{_raw:X4})",
+                    CallJmpRetFunc.CALL_IMM => $"CALL {ImmCallJr}",
+                    CallJmpRetFunc.CALL_REG => $"CALL R{Rd}",
+                    CallJmpRetFunc.RET when Rd == 14 => $"RET",
+                    CallJmpRetFunc.RET when Rd != 14 => $"JMP  R{Rd}",
+                    CallJmpRetFunc.JR => $"JR   {ImmCallJr}",
                     _ => throw new NotImplementedException(),
                 },
                 OpCode.INT_RETI => Func2 switch
                 {
-                    0 => $"INT R{Rd} (0x{_raw:X4})",
-                    1 => $"RETI (0x{_raw:X4})",
-                    2 => $"MOV R{Rd}, EPC (0x{_raw:X4})",
-                    3 => $"MOV EPC, R{Rd} (0x{_raw:X4})",
+                    0 => $"INT  R{Rd}",
+                    1 => $"RETI",
+                    2 => $"MOV  R{Rd}, EPC",
+                    3 => $"MOV  EPC, R{Rd}",
                     _ => throw new NotImplementedException(),
                 },
                 _ => throw new NotImplementedException(),

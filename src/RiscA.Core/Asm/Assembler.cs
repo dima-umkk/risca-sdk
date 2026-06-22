@@ -19,9 +19,9 @@ namespace RiscA.Core.Asm
         int curAddress = address;
         
         public List<SrcLine> Src { get {  return src; }  }
-        List<SrcLine> src = new List<SrcLine>();
+        List<SrcLine> src = new();
 
-        Dictionary<string, SrcLine> labelMap = new Dictionary<string, SrcLine>();
+        Dictionary<string, SrcLine> labelMap = new();
 
         public void Compile(string filename)
         {

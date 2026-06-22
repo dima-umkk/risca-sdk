@@ -82,8 +82,8 @@ namespace RiscA.Core.Tests.Asm
         }
 
         [Theory]
-        [InlineData("movi r1, 256", "<= 255")]
-        [InlineData("movl r12, 300", "<= 255")]
+        [InlineData("movi r1, 256", "0 .. 255")]
+        [InlineData("movl r12, 300", "0 .. 255")]
         public void ParserRegImmExceptionTest(string line, string exstr)
         {
             Action act = () => Parser.ParseLine(line);
