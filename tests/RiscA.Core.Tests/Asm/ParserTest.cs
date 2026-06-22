@@ -216,7 +216,7 @@ namespace RiscA.Core.Tests.Asm
         [InlineData("add r3, 70+60", "0 .. 127")]
         [InlineData("shl r1, 20+20", "0 .. 32")]
         [InlineData("shr r1, 100-50", "0 .. 32")]
-        [InlineData("ldi r5, -200-200-200", "-256 .. 255")]
+        [InlineData("ldi r5, [-200-200-200]", "-256 .. 255")]
         public void ParseExpressionExceptionTest(string line, string exstr)
         {
             Action act = () => Parser.ParseLine(line);
@@ -253,7 +253,7 @@ namespace RiscA.Core.Tests.Asm
         }
 
         [Theory]
-        [InlineData("ldi r15, label1", new int[] { 15 }, "label1")]
+        [InlineData("ldi r15, [label1]", new int[] { 15 }, "label1")]
         public void ParserLDILabelsTest(string line, int[] result, string label)
         {
             var pi = Parser.ParseLine(line);
