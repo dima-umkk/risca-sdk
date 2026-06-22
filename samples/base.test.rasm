@@ -16,5 +16,6 @@ loop:
 	bnez r0, loop
 	ret
 
-mystr:
+mystr: dw mystrref
+mystrref:
 	db 'Hello world!', 0

@@ -16,6 +16,8 @@ namespace RiscA.Core.Asm
         public List<Instruction> Instructions { get; init; } = [];
         public string? Label { get; set; }
         public string? RefLabel { get; set; }
+        public bool IsDW { get; set; }
+        public bool IsDB { get; set; }
     }
 
     public class Parser
@@ -46,6 +48,7 @@ namespace RiscA.Core.Asm
                 ([ [TK.NOP], [TK.EOL] ], ParseNop),
 
                 ([ [TK.DB], [TK.STRING, TK.NUMBER] ], ParseDB),
+                ([ [TK.DW], [TK.NUMBER, TK.LITERAL], [TK.EOL] ], ParseDW),
 
                 //Skip rules
                 ([ [TK.EOL] ], Skip), //empty line
@@ -331,6 +334,7 @@ namespace RiscA.Core.Asm
 
         static List<Token>? ParseDB(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
         {
+            parsedInstruction.IsDB = true;
             var bytes = new List<byte>();
             int i = pos + 1;
             while (i < tokens.Count && tokens[i].TokenType != TK.EOL)
@@ -368,6 +372,27 @@ namespace RiscA.Core.Asm
             }
 
             tokens.RemoveRange(pos, i - pos + 1);
+            return tokens;
+        }
+
+        static List<Token>? ParseDW(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
+        {
+            parsedInstruction.IsDW = true;
+            if (tokens[pos + 1].TokenType == TK.NUMBER)
+            {
+                int val = tokens[pos + 1].intValue;
+                ushort low = unchecked((ushort)(val & 0xFFFF));
+                ushort high = unchecked((ushort)((val >> 16) & 0xFFFF));
+                parsedInstruction.Instructions.Add(new Instruction(low));
+                parsedInstruction.Instructions.Add(new Instruction(high));
+            }
+            else
+            {
+                parsedInstruction.RefLabel = tokens[pos + 1].TokenString;
+                parsedInstruction.Instructions.Add(new Instruction(0));
+                parsedInstruction.Instructions.Add(new Instruction(0));
+            }
+            tokens.RemoveRange(pos, 3);
             return tokens;
         }
     }

@@ -80,9 +80,17 @@ foreach(SrcLine srcline in asm.Src)
                 };
                 string instrstr = instr.ToString();
                 string instrtrim = new string(' ', Math.Max(1, 15 - refaddr.Length - instrstr.Length));
-                if(Verbose.AssemblerInstructions)
-                    Console.WriteLine($"0x{instraddr:X8} {instr.Raw:X4}  {instrstr}{refaddr}{instrtrim}{sourcecode}");
-                lstwriter?.WriteLine($"0x{instraddr:X8} {instr.Raw:X4}  {instrstr}{refaddr}{instrtrim}{sourcecode}");
+                if (Verbose.AssemblerInstructions)
+                {
+                    if (pi.IsDW || pi.IsDB)
+                        Console.WriteLine($"0x{instraddr:X8} {instr.Raw:X4}                      {sourcecode}");
+                    else
+                        Console.WriteLine($"0x{instraddr:X8} {instr.Raw:X4}  {instrstr}{refaddr}{instrtrim}{sourcecode}");
+                }
+                if (pi.IsDW || pi.IsDB)
+                    lstwriter?.WriteLine($"0x{instraddr:X8} {instr.Raw:X4}                       {sourcecode}");
+                else
+                    lstwriter?.WriteLine($"0x{instraddr:X8} {instr.Raw:X4}  {instrstr}{refaddr}{instrtrim}{sourcecode}");
                 binwriter?.Write(instr.Raw);
                 binsize += 2;
             }

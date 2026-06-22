@@ -431,5 +431,52 @@ namespace RiscA.Core.Tests.Asm
             Action act = () => Parser.ParseLine(line);
             act.Should().Throw<Exception>().WithMessage("*out of range*");
         }
+
+        [Theory]
+        [InlineData("dw 0x12345678", new ushort[] { 0x5678, 0x1234 })]
+        [InlineData("dw -1", new ushort[] { 0xFFFF, 0xFFFF })]
+        [InlineData("dw 0", new ushort[] { 0x0000, 0x0000 })]
+        [InlineData("dw 0x7FFFFFFF", new ushort[] { 0xFFFF, 0x7FFF })]
+        public void ParseDWNumberTest(string line, ushort[] expected)
+        {
+            var pi = Parser.ParseLine(line);
+            pi.IsDW.Should().BeTrue();
+            pi.Instructions.Should().HaveCount(expected.Length);
+            for (int i = 0; i < expected.Length; i++)
+                pi.Instructions[i].Raw.Should().Be(expected[i]);
+        }
+
+        [Theory]
+        [InlineData("dw label1", "label1")]
+        [InlineData("dw mylabel", "mylabel")]
+        public void ParseDWLabelTest(string line, string label)
+        {
+            var pi = Parser.ParseLine(line);
+            pi.IsDW.Should().BeTrue();
+            pi.RefLabel.Should().Be(label);
+            pi.Instructions.Should().HaveCount(2);
+            pi.Instructions[0].Raw.Should().Be(0);
+            pi.Instructions[1].Raw.Should().Be(0);
+        }
+
+        [Theory]
+        [InlineData("data: dw 42", "data", new ushort[] { 0x002A, 0x0000 })]
+        public void ParseDWWithLabelTest(string line, string label, ushort[] expected)
+        {
+            var pi = Parser.ParseLine(line);
+            pi.Label.Should().Be(label);
+            pi.IsDW.Should().BeTrue();
+            pi.Instructions.Should().HaveCount(expected.Length);
+            for (int i = 0; i < expected.Length; i++)
+                pi.Instructions[i].Raw.Should().Be(expected[i]);
+        }
+
+        [Theory]
+        [InlineData("dw 'hello'")]
+        public void ParseDWStringErrorTest(string line)
+        {
+            Action act = () => Parser.ParseLine(line);
+            act.Should().Throw<Exception>().WithMessage("*syntax error*");
+        }
     }
 }
