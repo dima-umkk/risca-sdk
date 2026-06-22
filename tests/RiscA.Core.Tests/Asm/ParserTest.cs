@@ -377,5 +377,59 @@ namespace RiscA.Core.Tests.Asm
             pi.Instructions[0].Rd.Should().Be(result[1]);
         }
 
+        [Theory]
+        [InlineData("db 'A'",  new ushort[] { 0x0041 })]
+        [InlineData("db 'AB'", new ushort[] { 0x4241 })]
+        [InlineData("db 'ABC'", new ushort[] { 0x4241, 0x0043 })]
+        [InlineData("db 'hello'", new ushort[] { 0x6568, 0x6C6C, 0x006F })]
+        [InlineData("db 65",   new ushort[] { 0x0041 })]
+        [InlineData("db 0",    new ushort[] { 0x0000 })]
+        [InlineData("db 255",  new ushort[] { 0x00FF })]
+        [InlineData("db -128", new ushort[] { 0x0080 })]
+        public void ParseDBStringNumberTest(string line, ushort[] expected)
+        {
+            var pi = Parser.ParseLine(line);
+            pi.Instructions.Should().HaveCount(expected.Length);
+            for (int i = 0; i < expected.Length; i++)
+                pi.Instructions[i].Raw.Should().Be(expected[i]);
+        }
+
+        [Theory]
+        [InlineData("db 'hello', 32, 'world'", new ushort[] { 0x6568, 0x6C6C, 0x206F, 0x6F77, 0x6C72, 0x0064 })]
+        [InlineData("db 'AB', 0x43, 'D'", new ushort[] { 0x4241, 0x4443 })]
+        public void ParseDBMixedTest(string line, ushort[] expected)
+        {
+            var pi = Parser.ParseLine(line);
+            pi.Instructions.Should().HaveCount(expected.Length);
+            for (int i = 0; i < expected.Length; i++)
+                pi.Instructions[i].Raw.Should().Be(expected[i]);
+        }
+
+        [Fact]
+        public void ParseDBEmptyStringTest()
+        {
+            var pi = Parser.ParseLine("db ''");
+            pi.Instructions.Should().BeEmpty();
+        }
+
+        [Theory]
+        [InlineData("label: db 'A'", "label", 0x0041)]
+        [InlineData("data: db 42", "data", 0x002A)]
+        public void ParseDBWithLabelTest(string line, string label, ushort raw)
+        {
+            var pi = Parser.ParseLine(line);
+            pi.Label.Should().Be(label);
+            pi.Instructions.Should().HaveCount(1);
+            pi.Instructions[0].Raw.Should().Be(raw);
+        }
+
+        [Theory]
+        [InlineData("db 256")]
+        [InlineData("db -129")]
+        public void ParseDBRangeErrorTest(string line)
+        {
+            Action act = () => Parser.ParseLine(line);
+            act.Should().Throw<Exception>().WithMessage("*out of range*");
+        }
     }
 }

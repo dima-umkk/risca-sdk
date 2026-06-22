@@ -45,6 +45,8 @@ namespace RiscA.Core.Asm
                 ([ [TK.MOV], [TK.EPC], [TK.COMMA], [TK.REG], [TK.EOL] ], ParseEPC),
                 ([ [TK.NOP], [TK.EOL] ], ParseNop),
 
+                ([ [TK.DB], [TK.STRING, TK.NUMBER] ], ParseDB),
+
                 //Skip rules
                 ([ [TK.EOL] ], Skip), //empty line
             ];
@@ -324,6 +326,48 @@ namespace RiscA.Core.Asm
         {
             parsedInstruction.Label = tokens[pos].TokenString;
             tokens.RemoveRange(pos, 2);
+            return tokens;
+        }
+
+        static List<Token>? ParseDB(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
+        {
+            var bytes = new List<byte>();
+            int i = pos + 1;
+            while (i < tokens.Count && tokens[i].TokenType != TK.EOL)
+            {
+                if (tokens[i].TokenType == TK.COMMA)
+                {
+                    i++;
+                    continue;
+                }
+                if (tokens[i].TokenType == TK.STRING)
+                {
+                    foreach (char c in tokens[i].strValue!)
+                        bytes.Add((byte)c);
+                    i++;
+                    continue;
+                }
+                if (tokens[i].TokenType == TK.NUMBER)
+                {
+                    int val = tokens[i].intValue;
+                    if (val < -128 || val > 255)
+                        throw new Exception($"Syntax error {tokens[i].TokenPos}: value {val} out of range -128..255 for db");
+                    bytes.Add((byte)val);
+                    i++;
+                    continue;
+                }
+                throw new Exception($"Syntax error {tokens[i].TokenPos}: unexpected '{tokens[i].TokenString}' in db directive");
+            }
+
+            for (int j = 0; j < bytes.Count; j += 2)
+            {
+                ushort raw = bytes[j];
+                if (j + 1 < bytes.Count)
+                    raw |= (ushort)(bytes[j + 1] << 8);
+                parsedInstruction.Instructions.Add(new Instruction(raw));
+            }
+
+            tokens.RemoveRange(pos, i - pos + 1);
             return tokens;
         }
     }
