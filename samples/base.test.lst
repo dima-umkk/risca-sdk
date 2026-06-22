@@ -1,19 +1,19 @@
                                      
                                      ; some comment
                                      main:
-0x00000000 0A1A  MOVI R3, 10    	movi r3, 10
-0x00000002 05E5  LDI  R12, [11] (0018) 	ldi r12, [loop]
-0x00000004 D379  ADD  R15, 105  	add r15, (-5+100*(-1))*-1
-0x00000006 BF79  ADD  R15, 95   	add r15, -5-100*(-1)
-0x00000008 050A  MOVI R1, 5     	movi r1, 5
-0x0000000A 0389  SUB  R1, 1     	sub r1,1
-0x0000000C F48C  BNEZ R1, -6 (0000) 	bnez r1, main
-0x0000000E 0A02  MOVI R0, 10    	movi r0, 10
-0x00000010 0016  CALL 2 (0018)  	call loop
-0x00000012 0176  RET            	ret
-0x00000014 FFDE  JR   -5 (0000) 	jr main
+0x00000000 0000  NOP            	nop
+0x00000002 0A1A  MOVI R3, 10    	movi r3, 10
+0x00000004 0565  LDI  R12, [10] (0018) 	ldi r12, [loop]
+0x00000006 D379  ADD  R15, 105  	add r15, (-5+100*(-1))*-1
+0x00000008 BF79  ADD  R15, 95   	add r15, -5-100*(-1)
+0x0000000A 050A  MOVI R1, 5     	movi r1, 5
+0x0000000C 0389  SUB  R1, 1     	sub r1,1
+0x0000000E F28C  BNEZ R1, -7 (0000) 	bnez r1, main
+0x00000010 0A02  MOVI R0, 10    	movi r0, 10
+0x00000012 0016  CALL 2 (0018)  	call loop
+0x00000014 0176  RET            	ret
+0x00000016 FFDE  JR   -5 (0000) 	jr main
                                      
-0x00000016 0000  NOP            	nop
                                      loop:
 0x00000018 0381  SUB  R0, 1     	sub r0, 1
 0x0000001A FE84  BNEZ R0, -1 (0018) 	bnez r0, loop

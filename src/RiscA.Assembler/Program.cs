@@ -64,11 +64,11 @@ foreach(SrcLine srcline in asm.Src)
                 int instraddr = srcline.Address + index * 2;
                 string refaddr = instr.OpCode switch
                 {
-                    OpCode.BRANCH => $" ({(instraddr + instr.Imm7s * 2):X4})",
-                    OpCode.LDI => $" ({(instraddr + instr.Imm9 * 2):X4})",
+                    OpCode.BRANCH => $" ({instr.CalcRef(instraddr):X4})",
+                    OpCode.LDI => $" ({instr.CalcRef(instraddr):X4})",
                     OpCode.CALL_JMP_RET => (CallJmpRetFunc)instr.Func2 switch
                     {
-                        CallJmpRetFunc.CALL_IMM or CallJmpRetFunc.JR => $" ({(instraddr + instr.ImmCallJr * 4):X4})",
+                        CallJmpRetFunc.CALL_IMM or CallJmpRetFunc.JR => $" ({instr.CalcRef(instraddr):X4})",
                         _ => ""
                     },
                     _ => ""

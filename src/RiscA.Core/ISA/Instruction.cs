@@ -188,6 +188,21 @@ namespace RiscA.Core.ISA
             };
         }
 
+        public int CalcRef(int address)
+        {
+            return OpCode switch
+            {
+                OpCode.BRANCH => address + Imm7s*2,
+                OpCode.LDI => address + Imm9*2,
+                OpCode.CALL_JMP_RET => (CallJmpRetFunc)Func2 switch
+                {
+                    CallJmpRetFunc.CALL_IMM or CallJmpRetFunc.JR => ((address>>2)<<2) + ImmCallJr*4,
+                    _ => address,
+                },
+                _ => address,
+            };
+        }
+
         public override string ToString() 
         {
             return OpCode switch

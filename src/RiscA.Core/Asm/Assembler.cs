@@ -61,9 +61,9 @@ namespace RiscA.Core.Asm
                     }
                     int refbytes = refline.Address - src[i].Address;
                     int refinstr = refbytes >> 1;
-                    int refwords = refbytes >> 2;
+                    int refwords = (refline.Address >> 2) - (src[i].Address >> 2);
                     int imm = pi.Instructions[0].OpCode == ISA.OpCode.CALL_JMP_RET ? refwords : refinstr;
-                    if(pi.Instructions[0].OpCode == ISA.OpCode.CALL_JMP_RET && (refbytes & 0b0000_0011) != 0)
+                    if(pi.Instructions[0].OpCode == ISA.OpCode.CALL_JMP_RET && (refline.Address & 0b0000_0011) != 0)
                     {
                         throw new Exception($"{src[i].Filename}: {refline.Pos+1}: '{reflabel}' is not word aligned!");
                     }
