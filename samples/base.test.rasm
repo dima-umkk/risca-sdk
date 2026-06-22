@@ -1,6 +1,8 @@
 
 ; some comment
 main:
+	movi r3, 10
+	movi r3, 10
 	add r15, (-5+100*(-1))*-1
 	add r15, -5-100*(-1)
 	movi r1, 5

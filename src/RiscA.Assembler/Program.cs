@@ -3,12 +3,22 @@ using RiscA.Core.Asm;
 using RiscA.Core.ISA;
 
 string? filename = null;
+string? binfile = null;
+string? lstfile = null;
 
-for(int i=0; i<args.Length; i++)
+for (int i=0; i<args.Length; i++)
 {
     if (args[i].Equals("-i") && args.Length > i + 1)
     {
         filename = args[i+1];
+    }
+    if (args[i].Equals("-o") && args.Length > i + 1)
+    {
+        binfile = args[i + 1];
+    }
+    if (args[i].Equals("-l") && args.Length > i + 1)
+    {
+        lstfile = args[i + 1];
     }
     if (args[i].StartsWith("-v"))
     {
@@ -19,9 +29,11 @@ for(int i=0; i<args.Length; i++)
 
 if(filename == null)
 {
-    Console.WriteLine("Usage: rasm.exe -i filename.rasm");
+    Console.WriteLine("Usage: rasm.exe -i filename.rasm -o filename.bin -l filename.lst -vi");
     return -1;
 }
+using BinaryWriter? binwriter = binfile is not null ? new BinaryWriter(File.OpenWrite(binfile)) : null;
+using StreamWriter? lstwriter = lstfile is not null ? new StreamWriter(lstfile) : null;
 
 Assembler asm = new(0);
 try
@@ -34,48 +46,50 @@ catch(Exception ex)
     return -1;
 }
 
-if (Verbose.AssemblerInstructions)
+int binsize = 0;
+
+foreach(SrcLine srcline in asm.Src)
 {
-    int binsize = 0;
-    foreach(SrcLine srcline in asm.Src)
+    if(srcline.ParsedInstruction is ParsedInstruction pi)
     {
-        if(srcline.ParsedInstruction is ParsedInstruction pi)
+        if (pi.Instructions.Count == 0)
         {
-            if (pi.Instructions.Count == 0)
+            Console.WriteLine($"                                     {srcline.Line}");
+            lstwriter?.WriteLine($"                                     {srcline.Line}");
+        }
+        else
+        {    
+            foreach (var (index, instr) in pi.Instructions.Index())
             {
-                Console.WriteLine($"                                     {srcline.Line}");
-            }
-            else
-            {    
-                foreach (var (index, instr) in pi.Instructions.Index())
+                int instraddr = srcline.Address + index * 2;
+                string refaddr = instr.OpCode switch
                 {
-                    int instraddr = srcline.Address + index * 2;
-                    string refaddr = instr.OpCode switch
+                    OpCode.BRANCH => $" ({(instraddr + instr.Imm7s * 2):X4})",
+                    OpCode.LDI => $" ({(instraddr + instr.Imm9 * 2):X4})",
+                    OpCode.CALL_JMP_RET => (CallJmpRetFunc)instr.Func2 switch
                     {
-                        OpCode.BRANCH => $" ({(instraddr + instr.Imm7s * 2):X4})",
-                        OpCode.LDI => $" ({(instraddr + instr.Imm9 * 2):X4})",
-                        OpCode.CALL_JMP_RET => (CallJmpRetFunc)instr.Func2 switch
-                        {
-                            CallJmpRetFunc.CALL_IMM or CallJmpRetFunc.JR => $" ({(instraddr + instr.ImmCallJr * 4):X4})",
-                            _ => ""
-                        },
+                        CallJmpRetFunc.CALL_IMM or CallJmpRetFunc.JR => $" ({(instraddr + instr.ImmCallJr * 4):X4})",
                         _ => ""
-                    };
-                    string sourcecode = index switch
-                    {
-                        0 => srcline.Line,
-                        _ => "",
-                    };
-                    string instrstr = instr.ToString();
-                    string instrtrim = new string(' ', Math.Max(1, 15 - refaddr.Length - instrstr.Length));
+                    },
+                    _ => ""
+                };
+                string sourcecode = index switch
+                {
+                    0 => srcline.Line,
+                    _ => "",
+                };
+                string instrstr = instr.ToString();
+                string instrtrim = new string(' ', Math.Max(1, 15 - refaddr.Length - instrstr.Length));
+                if(Verbose.AssemblerInstructions)
                     Console.WriteLine($"0x{instraddr:X8} {instr.Raw:X4}  {instrstr}{refaddr}{instrtrim}{sourcecode}");
-                    binsize += 2;
-                }
+                lstwriter?.WriteLine($"0x{instraddr:X8} {instr.Raw:X4}  {instrstr}{refaddr}{instrtrim}{sourcecode}");
+                binwriter?.Write(instr.Raw);
+                binsize += 2;
             }
         }
     }
-    Console.WriteLine($"\nBinary size: {binsize} bytes.");
 }
 
+Console.WriteLine($"\nBinary size: {binsize} bytes.");
 
 return 0;
