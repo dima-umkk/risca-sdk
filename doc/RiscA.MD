@@ -52,8 +52,8 @@ Imm(7) | func2(2) | Rd(4) | opcode(3)
 
 	func2:
 
-		0) SHL Rd, Imm(4); Rd = Rd << Imm(0-3 bits)
-		1) SHR Rd, Imm(4); Rd = Rd >> Imm(0-3 bits); Logical - fills 0 on the left
+		0) SHL Rd, Imm(4); Rd = Rd << Imm(0-4 bits)
+		1) SHR Rd, Imm(4); Rd = Rd >> Imm(0-4 bits); Logical - fills 0 on the left
 		2) ADD Rd, Imm(7); Rd = Rd + Imm(7)
 		3) SUB Rd, Imm(7); Rd = Rd - Imm(7)
 
