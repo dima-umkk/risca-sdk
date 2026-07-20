@@ -9,8 +9,7 @@ main:
 	ret
 	jr main
 
-	nop
-loop:
+.func loop:
 	ldi r1, [mystr]
 	sub r0, 1
 	bnez r0, loop

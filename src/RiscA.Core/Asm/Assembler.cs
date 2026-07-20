@@ -20,9 +20,9 @@ namespace RiscA.Core.Asm
         int curAddress = address;
         
         public List<SrcLine> Src { get {  return src; }  }
-        List<SrcLine> src = new();
+        List<SrcLine> src = [];
 
-        Dictionary<string, SrcLine> labelMap = new();
+        Dictionary<string, SrcLine> labelMap = [];
 
         public void Compile(string filename)
         {
@@ -36,6 +36,21 @@ namespace RiscA.Core.Asm
             {
                 try
                 {
+                    //preprocessor
+                    if(src[i].Line.Contains(".func"))
+                    {//function declaration
+                        src[i].Line = src[i].Line.Replace(".func", "");
+                        if((curAddress & 0b0000_0011) != 0)
+                        {//make work aligned
+                            var nops = new SrcLine(";word align", i, src[i].Filename);
+                            nops.ParsedInstruction = new ParsedInstruction();
+                            nops.ParsedInstruction.Instructions.Add(new Instruction(0));
+                            nops.Address = curAddress;
+                            curAddress += 2;
+                            src.Insert(i, nops);
+                            continue;
+                        }
+                    }
                     var pi = src[i].ParsedInstruction = Parser.ParseLine(src[i].Line);
                     src[i].Address = curAddress;
                     curAddress += pi.Instructions.Count * 2;
@@ -55,8 +70,7 @@ namespace RiscA.Core.Asm
             {
                 if (src[i].ParsedInstruction is ParsedInstruction pi && pi.RefLabel is string reflabel)
                 {
-                    SrcLine? refline;
-                    if (!labelMap.TryGetValue(reflabel, out refline))
+                    if (!labelMap.TryGetValue(reflabel, out SrcLine? refline))
                     {
                         throw new Exception($"{src[i].Filename}: {src[i].Pos + 1}: Unknown label '{reflabel}'");
                     }

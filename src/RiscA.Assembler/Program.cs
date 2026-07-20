@@ -22,8 +22,8 @@ for (int i=0; i<args.Length; i++)
     }
     if (args[i].StartsWith("-v"))
     {
-        Verbose.ParserMatches = args[i].Contains("p");
-        Verbose.AssemblerInstructions = args[i].Contains("i");
+        Verbose.ParserMatches = args[i].Contains('p');
+        Verbose.AssemblerInstructions = args[i].Contains('i');
     }
 }
 
