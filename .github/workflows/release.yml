@@ -1,0 +1,144 @@
+name: release
+
+# Push в main (заодно и master, пока ветку не переименовали) или ручной запуск:
+# версия → тесты → нативные (NativeAOT) сборки rasm → GitHub Release с тегом v<version>.
+# Major задаётся вручную в version.props, Minor = число коммитов в HEAD (job version).
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DOTNET_NOLOGO: 'true'
+  DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+
+jobs:
+  version:
+    name: version
+    runs-on: ubuntu-latest
+    outputs:
+      major: ${{ steps.ver.outputs.major }}
+      minor: ${{ steps.ver.outputs.minor }}
+      version: ${{ steps.ver.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: ver
+        shell: bash
+        run: |
+          major="$(sed -n 's/.*<MajorVersion>\([0-9]\{1,\}\)<.*/\1/p' version.props | head -1)"
+          minor="$(git rev-list --count HEAD)"
+          test -n "$major" || { echo "MajorVersion not found in version.props" >&2; exit 1; }
+          echo "major=$major" >> "$GITHUB_OUTPUT"
+          echo "minor=$minor" >> "$GITHUB_OUTPUT"
+          echo "version=$major.$minor.0" >> "$GITHUB_OUTPUT"
+          echo "==> rasm $major.$minor.0  (major: version.props, minor: $minor)"
+
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - run: dotnet test RiscASDK.slnx -c Release --nologo
+
+  build:
+    name: build ${{ matrix.rid }}
+    needs: [ version, test ]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: win-x64
+            os: windows-latest
+          - rid: win-arm64
+            os: windows-latest
+          - rid: linux-x64
+            os: ubuntu-24.04
+          - rid: linux-arm64
+            os: ubuntu-24.04
+            cross: aarch64
+          - rid: osx-arm64
+            os: macos-latest
+    env:
+      MINOR: ${{ needs.version.outputs.minor }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # Кросс-тулчейн для linux-arm64 (NativeAOT не умеет собирать с Windows на Linux).
+      - name: Install cross toolchain
+        if: matrix.cross != ''
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang lld zlib1g-dev \
+            gcc-aarch64-linux-gnu libc6-dev-arm64-cross binutils-aarch64-linux-gnu
+
+      - name: Build (Linux / macOS)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: ./build.sh ${{ matrix.rid }}
+
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./build.ps1 -Rid ${{ matrix.rid }} -Minor ${{ needs.version.outputs.minor }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rasm-${{ needs.version.outputs.version }}-${{ matrix.rid }}
+          path: artifacts/*.zip
+          if-no-files-found: error
+
+  release:
+    name: release
+    needs: [ version, build ]
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ needs.version.outputs.version }}
+      TAG: v${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: rasm-*
+          path: dist
+          merge-multiple: true
+
+      - name: Checksums
+        shell: bash
+        run: |
+          cd dist
+          sha256sum rasm-*.zip > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      # Повторный запуск на том же коммите даёт ту же версию: если релиз уже есть,
+      # просто перезатираем ассеты.
+      - name: Publish release
+        shell: bash
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --clobber
+          else
+            gh release create "$TAG" dist/* \
+              --target "$GITHUB_SHA" \
+              --title "rasm $VERSION" \
+              --notes "Нативные сборки из \`${GITHUB_REF_NAME}\` (${GITHUB_SHA::7}). Major — из version.props, Minor — число коммитов в HEAD."
+          fi

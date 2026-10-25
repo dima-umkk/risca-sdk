@@ -1,0 +1,15 @@
+<Project>
+
+  <Import Project="$(MSBuildThisFileDirectory)version.props" Condition="Exists('$(MSBuildThisFileDirectory)version.props')" />
+
+  <PropertyGroup>
+    <!-- Major из version.props, Minor/Patch приходят из скриптов сборки или CI (-p:MinorVersion=N). -->
+    <MajorVersion Condition="'$(MajorVersion)' == ''">0</MajorVersion>
+    <MinorVersion Condition="'$(MinorVersion)' == ''">0</MinorVersion>
+    <PatchVersion Condition="'$(PatchVersion)' == ''">0</PatchVersion>
+    <Version>$(MajorVersion).$(MinorVersion).$(PatchVersion)</Version>
+    <!-- InformationalVersion получает суффикс +<git sha>, чтобы сборку можно было опознать по коммиту. -->
+    <IncludeSourceRevisionInInformationalVersion>true</IncludeSourceRevisionInInformationalVersion>
+  </PropertyGroup>
+
+</Project>

@@ -1,0 +1,15 @@
+<Project>
+
+  <!--
+    MAJOR версия rasm меняется ВРУЧНУЮ здесь:
+    при несовместимых изменениях ассемблируемого синтаксиса или формата .bin/.lst.
+
+    MINOR инкрементируется автоматически: это число коммитов в ветке
+    (см. build.ps1 / build.sh и .github/workflows/release.yml).
+    PATCH всегда 0, если не задан явно через -p:PatchVersion=N.
+  -->
+  <PropertyGroup>
+    <MajorVersion>1</MajorVersion>
+  </PropertyGroup>
+
+</Project>

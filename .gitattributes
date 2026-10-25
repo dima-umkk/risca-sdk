@@ -1,0 +1,2 @@
+# build.sh запускается под bash в Linux (CI и WSL): перевод строки только LF.
+*.sh text eol=lf

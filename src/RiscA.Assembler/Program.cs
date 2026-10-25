@@ -1,4 +1,4 @@
-﻿using RiscA.Core;
+using RiscA.Core;
 using RiscA.Core.Asm;
 using RiscA.Core.ISA;
 
@@ -8,6 +8,12 @@ string? lstfile = null;
 
 for (int i=0; i<args.Length; i++)
 {
+    if (args[i].Equals("--version") || args[i].Equals("-V"))
+    {
+        string? version = System.Reflection.Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3);
+        Console.WriteLine($"rasm {version ?? "dev"}");
+        return 0;
+    }
     if (args[i].Equals("-i") && args.Length > i + 1)
     {
         filename = args[i+1];
@@ -30,6 +36,7 @@ for (int i=0; i<args.Length; i++)
 if(filename == null)
 {
     Console.WriteLine("Usage: rasm.exe -i filename.rasm -o filename.bin -l filename.lst -vi");
+    Console.WriteLine("       rasm.exe --version");
     return -1;
 }
 using BinaryWriter? binwriter = binfile is not null ? new BinaryWriter(File.OpenWrite(binfile)) : null;
