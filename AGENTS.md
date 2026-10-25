@@ -31,9 +31,14 @@
   `rasm --version` prints `rasm <major.minor.patch>`.
 - **CI:** `.github/workflows/release.yml` — push to `main` (or manual run) → version → test →
   build matrix (win-x64, win-arm64, linux-x64, linux-arm64, osx-arm64) → GitHub Release tagged `v<version>`.
+  The `release` job writes `notes.md` from `git log` of the commits since the previous release
+  (`gh release create --notes-file` / `gh release edit` on a rerun) — release notes are generated, never hand-written.
 - No lint/formatter config.
 - All projects: `<ImplicitUsings>enable</ImplicitUsings>`, `<Nullable>enable</Nullable>`.
 - **ISA docs:** `doc/RiscA.MD` (spec) and `doc/README.md` (encoding reference with examples & limits).
+  `doc/RiscA.MD` is a copy of the spec from the RTL repo `dima-umkk/risca`, with our own fixes applied
+  (stale instruction lists, `func1` label, branch range, typos). When syncing it with upstream, re-apply those fixes;
+  never edit the upstream repo from this SDK.
 - **`Instruction` struct** in `ISA/Instruction.cs` — immutable `readonly struct` with `(mask, shift)` tuple fields and `with*()` builder methods.
 - **Assembler CLI** (`src/RiscA.Assembler/Program.cs`): `rasm -i <file.rasm>` plus optional `-v` (verbose), `-vp` (parser match debug), `-vi` (instruction dump). Sample: `samples/base.test.rasm`.
 - **Verbose flags** (`src/RiscA.Core/Verbose.cs`): `Verbose.ParserMatches` (`-vp`) and `Verbose.AssemblerInstructions` (`-vi`) control debug output.

@@ -2,6 +2,7 @@ name: release
 
 # Push в main или ручной запуск:
 # версия → тесты → нативные (NativeAOT) сборки rasm → GitHub Release с тегом v<version>.
+# Описание релиза job release собирает из git log: коммиты со времени предыдущего релиза.
 # Major и Minor задаются вручную в version.props, Patch = число коммитов в HEAD минус PatchBase (job version).
 
 on:
@@ -120,11 +121,17 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
-      # в этом job нет checkout, поэтому gh сам не определяет репозиторий по git remote
+      # без checkout gh сам не определяет репозиторий по git remote
       GH_REPO: ${{ github.repository }}
       VERSION: ${{ needs.version.outputs.version }}
       TAG: v${{ needs.version.outputs.version }}
+      PATCH: ${{ needs.version.outputs.patch }}
     steps:
+      - uses: actions/checkout@v4
+        with:
+          # полная история и все теги нужны, чтобы собрать список изменений для описания релиза
+          fetch-depth: 0
+
       - uses: actions/download-artifact@v4
         with:
           pattern: rasm-*
@@ -138,16 +145,61 @@ jobs:
           sha256sum rasm-*.zip > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
+      # Описание релиза — что реально изменилось с предыдущего релиза, а не вечный текст про версионирование.
+      - name: Release notes
+        shell: bash
+        run: |
+          # gh отдаёт релизы от новых к старым: берём самый свежий, но не тот, который публикуем сейчас.
+          releases='repos/'"$GH_REPO"'/releases?per_page=10'
+          prev="$(gh api "$releases" --jq "[.[] | select(.tag_name != \"$TAG\")][0].tag_name // empty" || true)"
+          base="$(gh api "$releases" --jq "[.[] | select(.tag_name != \"$TAG\")][0].target_commitish // empty" || true)"
+          if [ -n "$base" ] && git cat-file -e "$base^{commit}" 2>/dev/null; then
+            range="$base..HEAD"
+          elif [ -n "$prev" ] && git rev-parse -q --verify "refs/tags/$prev" >/dev/null; then
+            range="$prev..HEAD"
+          else
+            range=""
+          fi
+          if [ -n "$range" ]; then
+            log="$(git log --no-merges --pretty=format:'- %s (%h)' "$range")"
+          else
+            log="$(git log --no-merges --max-count=20 --pretty=format:'- %s (%h)' HEAD)"
+          fi
+          {
+            echo "Нативные (NativeAOT) сборки rasm $VERSION: win-x64, win-arm64, linux-x64, linux-arm64, osx-arm64."
+            echo "Контрольные суммы архивов — в SHA256SUMS.txt."
+            echo
+            if [ -z "$range" ]; then
+              echo "Первый релиз, отсчитывать изменения не от чего. Последние коммиты:"
+              echo
+              printf '%s\n' "$log"
+            elif [ -z "$log" ]; then
+              echo "Новых коммитов с $prev нет: это пересборка того же коммита, обновлены только архивы и описание."
+            else
+              echo "Изменения с $prev:"
+              echo
+              printf '%s\n' "$log"
+              echo
+              echo
+              echo "Полный список: https://github.com/$GH_REPO/compare/$prev...$TAG"
+            fi
+            echo
+            echo
+            echo "Версия: Major и Minor задаются вручную в version.props, Patch ($PATCH) = число коммитов в HEAD минус PatchBase."
+          } > notes.md
+          cat notes.md
+
       # Повторный запуск на том же коммите даёт ту же версию: если релиз уже есть,
-      # просто перезатираем ассеты.
+      # просто перезатираем ассеты и описание.
       - name: Publish release
         shell: bash
         run: |
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" dist/* --clobber
+            gh release edit "$TAG" --notes-file notes.md
           else
             gh release create "$TAG" dist/* \
               --target "$GITHUB_SHA" \
               --title "rasm $VERSION" \
-              --notes "Нативные сборки из \`${GITHUB_REF_NAME}\` (${GITHUB_SHA::7}). Major и Minor — из version.props, Patch — число коммитов в HEAD минус PatchBase."
+              --notes-file notes.md
           fi
