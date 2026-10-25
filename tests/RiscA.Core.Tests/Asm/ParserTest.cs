@@ -17,12 +17,14 @@ namespace RiscA.Core.Tests.Asm
         [InlineData("xor r6, r11", new int[] { 5, 6, 11 })]
         [InlineData("not r7, r10", new int[] { 6, 7, 10 })]
         [InlineData("mul r8, r9", new int[] { 7, 8, 9 })]
+        [InlineData("slt r9, r8", new int[] { 8, 9, 8 })]
+        [InlineData("sltu r10, r7", new int[] { 9, 10, 7 })]
         public void ParserAluRegRegTest(string line, int[] result)
         {
             var pi = Parser.ParseLine(line);
             pi.Instructions.Should().HaveCount(1);
             pi.Instructions[0].OpCode.Should().Be(OpCode.ALU_REG_REG);
-            pi.Instructions[0].Func3.Should().Be(result[0]);
+            pi.Instructions[0].Func4.Should().Be(result[0]);
             pi.Instructions[0].Rd.Should().Be(result[1]);
             pi.Instructions[0].Rs.Should().Be(result[2]);
         }
@@ -139,39 +141,37 @@ namespace RiscA.Core.Tests.Asm
         }
 
         [Theory]
-        [InlineData("beqz r1, 31",  new int[] { 0, 1, 31 })]
-        [InlineData("bnez r2, 2",   new int[] { 1, 2, 2 })]
-        [InlineData("bgtz r3, 63", new int[] { 2, 3, 63 })]
-        [InlineData("bltz r4, 3",   new int[] { 3, 4, 3 })]
+        [InlineData("beqz r1, 31",   new int[] { 0, 1, 31 })]
+        [InlineData("bnez r2, 2",    new int[] { 1, 2, 2 })]
+        [InlineData("beqz r3, 127",  new int[] { 0, 3, 127 })]
+        [InlineData("bnez r4, -128", new int[] { 1, 4, -128 })]
         public void ParserBranchTest(string line, int[] result)
         {
             var pi = Parser.ParseLine(line);
             pi.Instructions.Should().HaveCount(1);
             pi.Instructions[0].OpCode.Should().Be(OpCode.BRANCH);
-            pi.Instructions[0].Func2.Should().Be(result[0]);
+            pi.Instructions[0].Func1.Should().Be(result[0]);
             pi.Instructions[0].Rd.Should().Be(result[1]);
-            pi.Instructions[0].Imm7.Should().Be(result[2]);
+            pi.Instructions[0].Imm8s.Should().Be(result[2]);
         }
 
         [Theory]
         [InlineData("beqz r1, label1",  new int[] { 0, 1}, "label1")]
         [InlineData("bnez r2, loop",    new int[] { 1, 2}, "loop")]
-        [InlineData("bgtz r3, main33n", new int[] { 2, 3}, "main33n")]
-        [InlineData("bltz r4, asd234",  new int[] { 3, 4}, "asd234")]
         public void ParserBranchLabelsTest(string line, int[] result, string label)
         {
             var pi = Parser.ParseLine(line);
             pi.Instructions.Should().HaveCount(1);
             pi.Instructions[0].OpCode.Should().Be(OpCode.BRANCH);
-            pi.Instructions[0].Func2.Should().Be(result[0]);
+            pi.Instructions[0].Func1.Should().Be(result[0]);
             pi.Instructions[0].Rd.Should().Be(result[1]);
-            pi.Instructions[0].Imm7.Should().Be(0);
+            pi.Instructions[0].Imm8s.Should().Be(0);
             pi.RefLabel.Should().Be(label);
         }
 
         [Theory]
-        [InlineData("beqz r1, -35*2", "-64 .. 63")]
-        [InlineData("bnez r2, 256/2/2", "-64 .. 63")]
+        [InlineData("beqz r1, -65*2", "-128 .. 127")]
+        [InlineData("bnez r2, 256/2", "-128 .. 127")]
         public void ParserBranchExceptionsTest(string line, string exstr)
         {
             Action act = () => Parser.ParseLine(line);
@@ -225,17 +225,18 @@ namespace RiscA.Core.Tests.Asm
 
         [Theory]
         [InlineData("bnez r2, 10+20",    new int[] { 1, 2, 30 })]
-        [InlineData("bgtz r3, -7+8*2",   new int[] { 2, 3, 9 })]
+        [InlineData("beqz r3, -7+8*2",   new int[] { 0, 3, 9 })]
         [InlineData("bnez r2, 100-80",   new int[] { 1, 2, 20 })]
         [InlineData("beqz r1, (10+5)*2", new int[] { 0, 1, 30 })]
+        [InlineData("bnez r2, -100-20",  new int[] { 1, 2, -120 })]
         public void ParseExpressionWithBranchTest(string line, int[] result)
         {
             var pi = Parser.ParseLine(line);
             pi.Instructions.Should().HaveCount(1);
             pi.Instructions[0].OpCode.Should().Be(OpCode.BRANCH);
-            pi.Instructions[0].Func2.Should().Be(result[0]);
+            pi.Instructions[0].Func1.Should().Be(result[0]);
             pi.Instructions[0].Rd.Should().Be(result[1]);
-            pi.Instructions[0].Imm7.Should().Be(result[2]);
+            pi.Instructions[0].Imm8s.Should().Be(result[2]);
         }
 
         [Theory]

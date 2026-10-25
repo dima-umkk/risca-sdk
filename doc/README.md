@@ -10,11 +10,11 @@
 
 | Opcode | Type | Format | Operations |
 |--------|------|--------|------------|
-| 0 | ALU REG REG | `unused(2) \| func3(3) \| Rs(4) \| Rd(4) \| opcode(3)` | MOV, ADD, SUB, AND, OR, XOR, NOT, MUL |
+| 0 | ALU REG REG | `unused(1) \| func4(4) \| Rs(4) \| Rd(4) \| opcode(3)` | MOV, ADD, SUB, AND, OR, XOR, NOT, MUL, SLT, SLTU |
 | 1 | ALU Imm | `Imm(7) \| func2(2) \| Rd(4) \| opcode(3)` | SHL, SHR, ADD, SUB |
 | 2 | REG Imm | `Imm(8) \| func1(1) \| Rd(4) \| opcode(3)` | MOVI, MOVL |
 | 3 | ST/LD | `Imm(3) \| func22(1) \| func21(1) \| Rs(4) \| Rd(4) \| opcode(3)` | LDB, LDW, STB, STW |
-| 4 | BRANCH | `Imm(7) \| func2(2) \| Rd(4) \| opcode(3)` | BEQZ, BNEZ, BGTZ, BLTZ |
+| 4 | BRANCH | `Imm(8) \| func1(1) \| Rd(4) \| opcode(3)` | BEQZ, BNEZ |
 | 5 | LDI | `Imm(9) \| Rd(4) \| opcode(3)` | Load PC-relative 32-bit constant |
 | 6 | CALL/JMP/RET | `Imm(7) \| func2(2) \| Rd(4) \| opcode(3)` | CALL, JMP, RET, JR |
 | 7 | INT/RETI/STS | `unused(7) \| func2(2) \| Rd(4) \| opcode(3)` | INT, RETI, MOV EPC, MOV STS |
@@ -23,39 +23,44 @@
 
 ## ALU REG REG — Opcode 0
 
-`unused(2) | func3(3) | Rs(4) | Rd(4) | 000`
+`unused(1) | func4(4) | Rs(4) | Rd(4) | 000`
 
 ```
-bits 15–14: unused (must be 0)
-bits 13–11: func3  — selects operation
+bit  15:    unused (must be 0)
+bits 14–11: func4  — selects operation
 bits 10–7:  Rs     — source register
 bits 6–3:   Rd     — destination register
 bits 2–0:   000    — opcode
 ```
 
-| func3 | Mnemonic | Semantics |
+| func4 | Mnemonic | Semantics |
 |-------|----------|-----------|
-| 000 | MOV Rd, Rs | Rd = Rs |
-| 001 | ADD Rd, Rs | Rd = Rd + Rs |
-| 010 | SUB Rd, Rs | Rd = Rd − Rs |
-| 011 | AND Rd, Rs | Rd = Rd & Rs |
-| 100 | OR Rd, Rs | Rd = Rd \| Rs |
-| 101 | XOR Rd, Rs | Rd = Rd ^ Rs |
-| 110 | NOT Rd, Rs | Rd = ~Rs |
-| 111 | MUL Rd, Rs | Rd = Rd × Rs |
+| 0000 | MOV Rd, Rs | Rd = Rs |
+| 0001 | ADD Rd, Rs | Rd = Rd + Rs |
+| 0010 | SUB Rd, Rs | Rd = Rd − Rs |
+| 0011 | AND Rd, Rs | Rd = Rd & Rs |
+| 0100 | OR Rd, Rs | Rd = Rd \| Rs |
+| 0101 | XOR Rd, Rs | Rd = Rd ^ Rs |
+| 0110 | NOT Rd, Rs | Rd = ~Rs |
+| 0111 | MUL Rd, Rs | Rd = Rd × Rs |
+| 1000 | SLT Rd, Rs | Rd = (Rd < Rs) ? 1 : 0, signed comparison |
+| 1001 | SLTU Rd, Rs | Rd = (Rd < Rs) ? 1 : 0, unsigned comparison |
+| 1010–1111 | — | unused, reserved for future operations |
 
 **Limitations**
 - Rd, Rs: 0–15 (4-bit register index).
 - `MOV R0, R0` encodes as `0x0000` and is the canonical NOP.
-- Unused bits 15–14 must be zero for forward compatibility.
+- Unused bit 15 must be zero for forward compatibility.
 
 **Example**
 
 | Assembly | Encoding |
 |----------|----------|
-| `MOV R1, R2` | `0x00C1` |
-| `ADD R3, R4` | `0x1243` |
-| `SUB R0, R0` | `0x0800` |
+| `MOV R1, R2` | `0x0108` |
+| `ADD R3, R4` | `0x0A18` |
+| `SUB R0, R0` | `0x1000` |
+| `SLT R1, R2` | `0x4108` |
+| `SLTU R3, R4` | `0x4A18` |
 
 ---
 
@@ -87,9 +92,9 @@ bits 2–0:  001    — opcode
 
 | Assembly | Encoding |
 |----------|----------|
-| `SHL R1, 4` | `0x0221` |
-| `ADD R0, 127` | `0xFE01` |
-| `SUB R2, 1` | `0x8242` |
+| `SHL R1, 4` | `0x0809` |
+| `ADD R0, 127` | `0xFF01` |
+| `SUB R2, 1` | `0x0391` |
 
 ---
 
@@ -120,7 +125,7 @@ bits 2–0:  010    — opcode
 | Assembly | Encoding |
 |----------|----------|
 | `MOVI R0, 0xFF` | `0xFF02` |
-| `MOVL R0, 0xAA` | `0xFF42` |
+| `MOVL R0, 0xAA` | `0xAA82` |
 
 Loading 0x12345678 into R1:
 
@@ -155,50 +160,51 @@ bits 2–0:   011    — opcode
 
 **Limitations**
 - Rd, Rs: 0–15.
-- Imm(3): 3-bit unsigned offset.
-- Byte access: offset range 0–7 bytes.
-- Word access: offset is Imm(3) << 2, giving range 0, 4, 8, … , 28 (step 4).
+- Imm(3): 3-bit unsigned offset, written in the assembly as `0–7`.
+- Byte access: the offset is a byte offset, so the range is 0–7 bytes.
+- Word access: the hardware scales the offset by 4 (Imm(3) << 2), so `0–7` in the source means byte offsets 0, 4, 8, …, 28 (step 4).
 
 **Example**
 
 | Assembly | Encoding |
 |----------|----------|
-| `LDW R1, [R2 + 0]` | `0x00B3` |
-| `STW R4, [R5 + 8]` | `0xA8D3` |
-| `LDB R0, [R1 + 3]` | `0x60A3` |
+| `LDW R1, [R2 + 0]` | `0x110B` |
+| `STW [R5 + 2], R4` | `0x5AA3` |
+| `LDB R0, [R1 + 3]` | `0x6083` |
 
 ---
 
 ## BRANCH — Opcode 4
 
-`Imm(7) | func2(2) | Rd(4) | 100`
+`Imm(8) | func1(1) | Rd(4) | 100`
 
 ```
-bits 15–9: Imm(7) — signed offset
-bits 8–7:  func2  — branch condition
+bits 15–8: Imm(8) — signed offset
+bit  7:    func1  — branch condition
 bits 6–3:  Rd     — compared register
 bits 2–0:  100    — opcode
 ```
 
-| func2 | Mnemonic | Condition |
+| func1 | Mnemonic | Condition |
 |-------|----------|-----------|
-| 00 | BEQZ Rd, Imm | Rd == 0 |
-| 01 | BNEZ Rd, Imm | Rd != 0 |
-| 10 | BGTZ Rd, Imm | Rd > 0 (signed) |
-| 11 | BLTZ Rd, Imm | Rd < 0 (signed) |
+| 0 | BEQZ Rd, Imm | Rd == 0 |
+| 1 | BNEZ Rd, Imm | Rd != 0 |
 
 **Limitations**
 - Rd: 0–15.
-- Imm(7): 7-bit signed value in instruction units (−64 … +63).
+- Imm(8): 8-bit signed value in instruction units (−128 … +127).
 - PC-relative offset (bytes) = sign-extended Imm × 2.
-- Branch range: −64 … +63 instructions from PC.
+- Branch range: −128 … +127 instructions from PC (−256 … +254 bytes).
+- A label reference must resolve inside that range; the assembler reports the offset as out of range otherwise.
 
 **Example**
 
 | Assembly | Encoding |
 |----------|----------|
-| `BEQZ R0, 4` | `0x1004` |
-| `BNEZ R1, −2` | `0x3F24` |
+| `BEQZ R0, 4` | `0x0404` |
+| `BNEZ R1, −2` | `0xFE8C` |
+| `BEQZ R15, 127` | `0x7F7C` |
+| `BNEZ R0, −128` | `0x8084` |
 
 ---
 
@@ -214,7 +220,7 @@ bits 2–0:  101    — opcode
 
 **Semantics**
 
-`LDI Rd, offset` loads a 32-bit value stored at `PC + sign_ext(Imm) × 2` into Rd. The constant pool is typically placed at function boundaries.
+`LDI Rd, [offset]` loads a 32-bit value stored at `PC + sign_ext(Imm) × 2` into Rd. The constant pool is typically placed at function boundaries.
 
 **Limitations**
 - Rd: 0–15.
@@ -227,8 +233,8 @@ bits 2–0:  101    — opcode
 
 | Assembly | Encoding |
 |----------|----------|
-| `LDI R0, 8` | `0x0425` |
-| `LDI R1, −4` | `0x3E2D` |
+| `LDI R0, [8]` | `0x0405` |
+| `LDI R1, [−4]` | `0xFE0D` |
 
 ---
 
@@ -261,10 +267,10 @@ bits 2–0:  110    — opcode
 
 | Assembly | Encoding |
 |----------|----------|
-| `CALL 16` | `0x20E6` |
+| `CALL 16` | `0x0206` |
 | `CALL R14` | `0x00F6` |
-| `RET` | `0x01D6` |
-| `JR 4` | `0x20F6` |
+| `RET` | `0x0176` |
+| `JR 4` | `0x01A6` |
 
 ---
 
@@ -322,10 +328,10 @@ bits 2–0:  111    — opcode
 ```
 ; PUSH Rd
 SUB  R15, 4
-STW  [R15], Rd
+STW  [R15 + 0], Rd
 
 ; POP Rd
-LDW  Rd, [R15]
+LDW  Rd, [R15 + 0]
 ADD  R15, 4
 ```
 

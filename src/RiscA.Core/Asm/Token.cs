@@ -34,6 +34,8 @@ namespace RiscA.Core.Asm
         XOR,
         NOT,
         MUL,
+        SLT,
+        SLTU,
         SHL,
         SHR,
         LDI,
@@ -43,8 +45,6 @@ namespace RiscA.Core.Asm
         STW,
         BEQZ,
         BNEZ,
-        BGTZ,
-        BLTZ,
         CALL,
         RET,
         JMP,
@@ -94,6 +94,8 @@ namespace RiscA.Core.Asm
             {"xor", TK.XOR},
             {"not", TK.NOT},
             {"mul", TK.MUL},
+            {"slt", TK.SLT},
+            {"sltu", TK.SLTU},
             {"shl", TK.SHL},
             {"shr", TK.SHR},
 
@@ -105,8 +107,6 @@ namespace RiscA.Core.Asm
 
             {"beqz", TK.BEQZ },
             {"bnez", TK.BNEZ },
-            {"bgtz", TK.BGTZ },
-            {"bltz", TK.BLTZ },
 
             {"call", TK.CALL },
             {"ret", TK.RET },

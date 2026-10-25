@@ -11,14 +11,14 @@ General purpose registers 32 bit: R0-R15
 
 | Opcode (3 bits) | Type        | Format (16 bit)                                  | Description |
 | --------------- | ----------- | ------------------------------------------------ | ----------- |
-| 0               | [ALU REG REG](#alu-reg-reg) | ```unused(2)        func3(3)  Rs(4) Rd(4) opcode(3)``` | MOV,ADD,SUB,AND,OR,XOR,NOT,MUL|
+| 0               | [ALU REG REG](#alu-reg-reg) | ```unused(1)        func4(4)  Rs(4) Rd(4) opcode(3)``` | MOV,ADD,SUB,AND,OR,XOR,NOT,MUL,SLT,SLTU|
 | 1               | [ALU Imm](#alu-imm)         | ```Imm(7)           func2(2)        Rd(4) opcode(3)``` | SHR,SHL,ADD,SUB |
 | 2               | [REG Imm](#reg-imm)         | ```Imm(8)           func1(1)        Rd(4) opcode(3)``` | MOVI,MOVL |
 | 3               | [ST\LD](#stld)              | ```Imm(3) func22(1) func21(1) Rs(4) Rd(4) opcode(3)``` | LDB,LDW,STB,STW |
-| 4               | [BRANCH](#branch)           | ```Imm(7)           func2(2)        Rd(4) opcode(3)``` | BEQZ,BNEZ,BGTZ,BLTZ |
+| 4               | [BRANCH](#branch)           | ```Imm(8)           func1(1)        Rd(4) opcode(3)``` | BEQZ,BNEZ |
 | 5               | [LDI](#ldi)                 | ```Imm(9)                           Rd(4) opcode(3)``` | Load indirect 32 bit constant |
-| 6               | [CALL\JMP\RET](#calljmpret) | ```Imm(7)           func2(2)        Rd(4) opcode(3)``` | CALL,JMP,RET |
-| 7               | [INT\RETI\STS](#intretists) | ```unused(7)        func2(2)        Rd(4) opcode(3)``` | INT,RETI,STS |
+| 6               | [CALL\JMP\RET](#calljmpret) | ```Imm(7)           func2(2)        Rd(4) opcode(3)``` | CALL,JMP,RET,JR |
+| 7               | [INT\RETI\STS](#intretists) | ```unused(7)        func2(2)        Rd(4) opcode(3)``` | INT,RETI,MOV EPC |
 
 
 
@@ -28,11 +28,11 @@ General purpose registers 32 bit: R0-R15
 Opcode: 0
 
 ```
-notused(2) | func3(3) | Rs(4) | Rd(4) | opcode(3)
+unused(1) | func4(4) | Rs(4) | Rd(4) | opcode(3)
 ```
 
 	NOP is MOV R0, R0 - 0x0000 hex
-	func3:
+	func4:
 
 	0) MOV Rd, Rs; Rd = Rs
 	1) ADD Rd, Rs; Rd = Rd + Rs
@@ -42,6 +42,10 @@ notused(2) | func3(3) | Rs(4) | Rd(4) | opcode(3)
 	5) XOR Rd, Rs; Rd = Rd xor Rs
 	6) NOT Rd, Rs; Rd = ~Rs
 	7) MUL Rd, Rs; Rd = Rd * Rs
+	8) SLT Rd, Rs; Rd = (Rd < Rs) ? 1 : 0 (signed)
+	9) SLTU Rd, Rs; Rd = (Rd < Rs) ? 1 : 0 (unsigned)
+	...
+	unused
 	
 ### ALU Imm:
 Opcode: 1
@@ -91,15 +95,13 @@ Imm(3) | func22(1) | func21(1) |  Rs(4) |  Rd(4) | opcode(3)
 Opcode: 4
 
 ```
-Imm(7) | func2(2) | Rd(4) | opcode(3)
+Imm(8) | func1(1) | Rd(4) | opcode(3)
 ```
 
-	func2:
+	func1:
 
-	0) BEQZ Rd, Imm(7); Rd == 0 ? PC = PC + signed(Imm)<<1; in instructions
-	1) BNEZ Rd, Imm(7); Rd != 0 ? PC = PC + signed(Imm)<<1; in instructions
-	2) BGTZ Rd, Imm(7); Rd >  0 ? PC = PC + signed(Imm)<<1; in instructions
-	3) BLTZ Rd, Imm(7); Rd <  0 ? PC = PC + signed(Imm)<<1; in instructions
+	0) BEQZ Rd, Imm(8); Rd == 0 ? PC = PC + signed(Imm)<<1; in instructions (-128 .. +127 instructions)
+	1) BNEZ Rd, Imm(8); Rd != 0 ? PC = PC + signed(Imm)<<1; in instructions (-128 .. +127 instructions)
 
 ### LDI:
 Opcode: 5
@@ -156,15 +158,14 @@ unused(7) | func2(2) | Rd(4) | opcode(3)
 	Stack: R15
 	Link Register: R14. Link register should be pushed on stack and restored if subcall function occures
 	Function should restore R8-R13 if used
-	Function may use R6 R7 without restoration
 	Constants used in function stored at function ends after ret, or begin (for near LDI). For default in the end.
 	If constants in start then each function starts with JR skipping constants. (Constants will be always in ICache (IMEM))
 	Stack:
 		PUSH: 
 			SUB R15, 4
-			STW [R15], Rd
+			STW [R15 + 0], Rd
 		POP:
-			LDW Rd, [R15]
+			LDW Rd, [R15 + 0]
 		    ADD R15, 4
 
 	Syscall: INT R0 - system function, R1-R5 arguments. Result: R0

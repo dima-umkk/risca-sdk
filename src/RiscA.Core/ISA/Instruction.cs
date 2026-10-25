@@ -14,6 +14,8 @@ namespace RiscA.Core.ISA
         XOR = 5,
         NOT = 6,
         MUL = 7,
+        SLT = 8,
+        SLTU = 9,
     }
 
     public enum ALUImmFunc : byte
@@ -46,8 +48,6 @@ namespace RiscA.Core.ISA
     {
         BEQZ = 0,
         BNEZ = 1,
-        BGTZ = 2,
-        BLTZ = 3,
     }
 
     public enum CallJmpRetFunc : byte
@@ -81,7 +81,7 @@ namespace RiscA.Core.ISA
         private static readonly (ushort, ushort) MSK_FUNC2 =    (0b0000_0001_1000_0000, 7);
         private static readonly (ushort, ushort) MSK_FUNC21 =   (0b0000_1000_0000_0000, 11);
         private static readonly (ushort, ushort) MSK_FUNC22 =   (0b0001_0000_0000_0000, 12);
-        private static readonly (ushort, ushort) MSK_FUNC3 =    (0b0011_1000_0000_0000, 11);
+        private static readonly (ushort, ushort) MSK_FUNC4 =    (0b0111_1000_0000_0000, 11);
         private static readonly (ushort, ushort) MSK_IMM3 =     (0b1110_0000_0000_0000, 13);
         private static readonly (ushort, ushort) MSK_IMM7 =     (0b1111_1110_0000_0000, 9);
         private static readonly (ushort, ushort) MSK_IMM8 =     (0b1111_1111_0000_0000, 8);
@@ -101,11 +101,12 @@ namespace RiscA.Core.ISA
         public int Func2 => Get(MSK_FUNC2);
         public int Func21 => Get(MSK_FUNC21);
         public int Func22 => Get(MSK_FUNC22);
-        public int Func3 => Get(MSK_FUNC3);
+        public int Func4 => Get(MSK_FUNC4);
         public int Imm3 => Get(MSK_IMM3);
         public int Imm7 => Get(MSK_IMM7);
         public int Imm7s => GetSigned(MSK_IMM7, 7);
         public int Imm8 => Get(MSK_IMM8);
+        public int Imm8s => GetSigned(MSK_IMM8, 8);
         public int Imm9 => GetSigned(MSK_IMM9, 9);
         public int ImmCallJr => (Imm7s << 4) | Rd;
         public Instruction withOpCode(OpCode opcode) => new(Apply((int)opcode, MSK_OPCODE));
@@ -115,7 +116,7 @@ namespace RiscA.Core.ISA
         public Instruction withFunc2(int func2) => new(Apply(func2, MSK_FUNC2));
         public Instruction withFunc21(int func21) => new(Apply(func21, MSK_FUNC21));
         public Instruction withFunc22(int func22) => new(Apply(func22, MSK_FUNC22));
-        public Instruction withFunc3(int func3) => new(Apply(func3, MSK_FUNC3));
+        public Instruction withFunc4(int func4) => new(Apply(func4, MSK_FUNC4));
         public Instruction withImm3(int imm3) => new(Apply(imm3, MSK_IMM3));
         public Instruction withImm7(int imm7) => new(Apply(imm7, MSK_IMM7));
         public Instruction withImm8(int imm8) => new(Apply(imm8, MSK_IMM8));
@@ -132,7 +133,7 @@ namespace RiscA.Core.ISA
                 OpCode.ALU_REG_IMM => (0, 127, "Immediate"),
                 OpCode.REG_IMM => (0, 255, "Immediate"),
                 OpCode.ST_LD => (0, 7, "Offset"),
-                OpCode.BRANCH => (-64, 63, "Offset"),
+                OpCode.BRANCH => (-128, 127, "Offset"),
                 OpCode.LDI => (-256, 255, "Offset"),
                 OpCode.CALL_JMP_RET => (-1024, 1023, "Offset"),
                 _ => (0, -1, ""),
@@ -148,7 +149,7 @@ namespace RiscA.Core.ISA
                 OpCode.ALU_REG_IMM => this.withImm7(imm),
                 OpCode.REG_IMM => this.withImm8(imm),
                 OpCode.ST_LD => this.withImm3(imm),
-                OpCode.BRANCH => this.withImm7(imm),
+                OpCode.BRANCH => this.withImm8(imm),
                 OpCode.LDI => this.withImm9(imm),
                 OpCode.CALL_JMP_RET => (CallJmpRetFunc)Func2 switch
                 {
@@ -163,7 +164,7 @@ namespace RiscA.Core.ISA
         {
             return OpCode switch
             {
-                OpCode.BRANCH => address + Imm7s*2,
+                OpCode.BRANCH => address + Imm8s*2,
                 OpCode.LDI => address + Imm9*2,
                 OpCode.CALL_JMP_RET => (CallJmpRetFunc)Func2 switch
                 {
@@ -178,11 +179,11 @@ namespace RiscA.Core.ISA
         {
             return OpCode switch
             {
-                OpCode.ALU_REG_REG => Rd == 0 && Rs == 0 ? $"NOP" : $"{(ALUFunc)Func3}  R{Rd}, R{Rs}",
+                OpCode.ALU_REG_REG => Rd == 0 && Rs == 0 ? $"NOP" : $"{(ALUFunc)Func4}  R{Rd}, R{Rs}",
                 OpCode.ALU_REG_IMM => $"{(ALUImmFunc)Func2}  R{Rd}, {Imm7}",
                 OpCode.REG_IMM => $"{(RegImmFunc)Func1} R{Rd}, {Imm8}",
                 OpCode.ST_LD => $"{(LdStFunc)Func21}{(LdStBWFunc)Func22}  R{Rd}, [R{Rs}+{Imm3}]",
-                OpCode.BRANCH => $"{(BranchFunc)Func2} R{Rd}, {Imm7s}",
+                OpCode.BRANCH => $"{(BranchFunc)Func1} R{Rd}, {Imm8s}",
                 OpCode.LDI => $"LDI  R{Rd}, [{Imm9}]",
                 OpCode.CALL_JMP_RET => (CallJmpRetFunc)Func2 switch
                 {

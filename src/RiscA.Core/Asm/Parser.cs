@@ -33,12 +33,12 @@ namespace RiscA.Core.Asm
                 ([ [TK.LITERAL], [TK.COLON] ], ExpLabel),
 
                 //Instructions
-                ([ [TK.MOV,TK.ADD,TK.SUB,TK.AND,TK.OR,TK.XOR,TK.NOT,TK.MUL], [TK.REG], [TK.COMMA], [TK.REG], [TK.EOL] ], ParseAlu),
+                ([ [TK.MOV,TK.ADD,TK.SUB,TK.AND,TK.OR,TK.XOR,TK.NOT,TK.MUL,TK.SLT,TK.SLTU], [TK.REG], [TK.COMMA], [TK.REG], [TK.EOL] ], ParseAlu),
                 ([ [TK.SHL, TK.SHR, TK.ADD, TK.SUB], [TK.REG], [TK.COMMA], [TK.NUMBER], [TK.EOL] ], ParseAluImm),
                 ([ [TK.MOVI, TK.MOVL], [TK.REG], [TK.COMMA], [TK.NUMBER], [TK.EOL] ], ParseRegImm),
                 ([ [TK.LDB, TK.LDW], [TK.REG], [TK.COMMA], [TK.LSBRACKET], [TK.REG], [TK.PLUS], [TK.NUMBER], [TK.RSBRACKET], [TK.EOL] ], ParseLD),
                 ([ [TK.STB, TK.STW], [TK.LSBRACKET], [TK.REG], [TK.PLUS], [TK.NUMBER], [TK.RSBRACKET], [TK.COMMA], [TK.REG], [TK.EOL] ], ParseST),
-                ([ [TK.BEQZ, TK.BNEZ, TK.BGTZ, TK.BLTZ,], [TK.REG], [TK.COMMA], [TK.NUMBER, TK.LITERAL], [TK.EOL] ], ParseBranch),
+                ([ [TK.BEQZ, TK.BNEZ], [TK.REG], [TK.COMMA], [TK.NUMBER, TK.LITERAL], [TK.EOL] ], ParseBranch),
                 ([ [TK.LDI], [TK.REG], [TK.COMMA], [TK.LSBRACKET], [TK.NUMBER,TK.LITERAL], [TK.RSBRACKET], [TK.EOL] ], ParseLDI),
                 ([ [TK.CALL, TK.JR], [TK.NUMBER, TK.LITERAL], [TK.EOL] ], ParseCallJr),
                 ([ [TK.CALL, TK.JMP, TK.INT], [TK.REG], [TK.EOL] ], ParseCallJmpInt),
@@ -112,7 +112,7 @@ namespace RiscA.Core.Asm
         {
             var i = new Instruction(0)
                 .withOpCode(OpCode.ALU_REG_REG)
-                .withFunc3(rule[0].IndexOf(tokens[pos].TokenType))
+                .withFunc4(rule[0].IndexOf(tokens[pos].TokenType))
                 .withRd(tokens[pos + 1].intValue)
                 .withRs(tokens[pos + 3].intValue);
             parsedInstruction.Instructions.Add(i);
@@ -177,16 +177,16 @@ namespace RiscA.Core.Asm
 
         static List<Token>? ParseBranch(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
         {
-            var imm7 = tokens[pos + 3].TokenType == TK.NUMBER ? tokens[pos + 3].intValue : 0;
+            var imm8 = tokens[pos + 3].TokenType == TK.NUMBER ? tokens[pos + 3].intValue : 0;
             if (tokens[pos + 3].TokenType == TK.LITERAL)
                 parsedInstruction.RefLabel = tokens[pos + 3].TokenString;
             var i = new Instruction(0)
                 .withOpCode(OpCode.BRANCH)
-                .withFunc2(rule[0].IndexOf(tokens[pos].TokenType))
+                .withFunc1(rule[0].IndexOf(tokens[pos].TokenType))
                 .withRd(tokens[pos + 1].intValue)
-                .withImm7(imm7);
+                .withImm8(imm8);
 
-            i.CheckImmLimits(imm7);
+            i.CheckImmLimits(imm8);
             parsedInstruction.Instructions.Add(i);
             tokens.RemoveRange(pos, 5);
             return tokens;
@@ -279,7 +279,7 @@ namespace RiscA.Core.Asm
         {
             var i = new Instruction(0)
                 .withOpCode(OpCode.ALU_REG_REG)
-                .withFunc2((int)ALUFunc.MOV)
+                .withFunc4((int)ALUFunc.MOV)
                 .withRd(0)
                 .withRs(0);
             parsedInstruction.Instructions.Add(i);
