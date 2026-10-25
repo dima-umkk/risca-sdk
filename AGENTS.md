@@ -50,7 +50,8 @@
   `samples/lib/uart.rasm`). Directive names are matched at string level, because the tokenizer cannot read `.name`.
   Directive syntax and caveats are documented in `doc/README.md` ("Assembler directives").
 - **Machine design record:** `doc/emulator-architecture.md` — the agreed architecture of the emulator,
-  debugger and compiler (Harvard two-bus machine, memory map with device blocks in 256-byte blocks at low
+  debugger and compiler (one flat address space — every address reachable both from the fetch
+  path and from `LDB/LDW/STB/STW`, a single load image, memory map with device blocks of 256 bytes at low
   addresses, UART0 = 4 registers, no interrupts yet, one `rsim` CLI, symbol map format, milestones M0…M4).
   The emulator and debugger are not implemented yet; the spec `doc/RiscA.MD` is the authority, `artifacts/rtl/`
   is a read-only upstream reference and must not be edited.
