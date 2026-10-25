@@ -12,6 +12,8 @@
   <Folder Name="/src/">
     <Project Path="src/RiscA.Assembler/RiscA.Assembler.csproj" />
     <Project Path="src/RiscA.Core/RiscA.Core.csproj" />
+    <Project Path="src/RiscA.Machine/RiscA.Machine.csproj" />
     <Project Path="tests/RiscA.Core.Tests/RiscA.Core.Tests.csproj" />
+    <Project Path="tests/RiscA.Machine.Tests/RiscA.Machine.Tests.csproj" />
   </Folder>
 </Solution>
