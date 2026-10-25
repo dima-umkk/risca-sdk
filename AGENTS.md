@@ -5,6 +5,8 @@
 | `RiscA.Core` | `src/RiscA.Core/` | Library — `RiscA.Core.ISA` (`Instruction`, `OpCode`, func enums) + `RiscA.Core.Asm` (`Assembler`, `Preprocessor`, `Parser`, `Tokenizer`, `TK`) |
 | `RiscA.Assembler` | `src/RiscA.Assembler/` | CLI (`Program.cs`) — references Core. Builds as `rasm.exe`. |
 | `RiscA.Core.Tests` | `tests/RiscA.Core.Tests/` | xunit + FluentAssertions — references Core |
+| `RiscA.Machine` | `src/RiscA.Machine/` | Library — emulator core: `AddressSpace`, `RamRegion`, `DeviceRegion`, `IDevice`, `Machine`, `Registers`, `ProgramImage`, `BusFault`, `MachineOptions`. References Core. |
+| `RiscA.Machine.Tests` | `tests/RiscA.Machine.Tests/` | xunit + FluentAssertions — references RiscA.Machine |
 
 ## Essentials
 
@@ -46,13 +48,24 @@
   decimal/`0x`/`0b`, substituted into any number position), `.include "file"` (spliced in, resolved relative
   to the including file first, each file included once, cycles ignored). Constants are collected in a second
   pass over the spliced lines, so a library included at the end of a file still provides its constants to the
-  code above it (address 0 is the reset vector, so libraries go last — see `samples/uart.echo.rasm` and
+  code above it (the image starts with the program body, so libraries go last — see `samples/uart.echo.rasm` and
   `samples/lib/uart.rasm`). Directive names are matched at string level, because the tokenizer cannot read `.name`.
   Directive syntax and caveats are documented in `doc/README.md` ("Assembler directives").
 - **Machine design record:** `doc/emulator-architecture.md` — the agreed architecture of the emulator,
   debugger and compiler (one flat address space — every address reachable both from the fetch
   path and from `LDB/LDW/STB/STW`, a single load image, memory map with device blocks of 256 bytes at low
   addresses, UART0 = 4 registers, no interrupts yet, one `rsim` CLI, symbol map format, milestones M0…M4).
-  The emulator and debugger are not implemented yet; the spec `doc/RiscA.MD` is the authority, `artifacts/rtl/`
+  The emulator core (milestone M0) lives in `src/RiscA.Machine`; the `rsim` CLI, the debugger and the
+  compiler are not implemented yet. The spec `doc/RiscA.MD` is the authority, `artifacts/rtl/`
   is a read-only upstream reference and must not be edited.
+- **Emulator core** (`src/RiscA.Machine`, namespace `RiscA.Machine`, block-style namespaces):
+  one flat `AddressSpace` — `RamRegion` (byte array, little-endian, unaligned words allowed) plus
+  `DeviceRegion` wrappers around `IDevice` at `addr[31:16] == 0`, device blocks of 256 bytes
+  (`AddDevice(name, block, device)`). `ResetVector` defaults to the start of the RAM
+  (`0x0001_0000`), `MachineOptions.ResetVector` overrides it. `Machine.Step()`/`Run(limit)` retire one
+  instruction at a time, every device gets exactly one `Tick()` per retired instruction; a `BusFault`
+  or an illegal instruction does not retire, the `PC` stays on the faulting instruction and the machine
+  halts. `StopReason`: `Running`, `Reti` (stop convention), `IntNotImplemented`, `IllegalInstruction`,
+  `BusFault`, `InstructionLimit`, `Halted`. `OnRetire` (`Action<StepResult>`) is the trace hook, called
+  for retired steps only. The library never touches `System.Console` (the future `rsim` owns I/O).
 - **Verbose flags** (`src/RiscA.Core/Verbose.cs`): `Verbose.ParserMatches` (`-vp`) and `Verbose.AssemblerInstructions` (`-vi`) control debug output.

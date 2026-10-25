@@ -84,9 +84,9 @@ bits 2–0:  001    — opcode
 
 **Limitations**
 - Rd: 0–15.
-- SHL/SHR: only the lower 4 bits of Imm are used as the shift amount (0–15). The assembler accepts
-  larger numbers (up to 32) but they mean `Imm & 0xF`, so a shift of 28 must be written as a
-  sequence, for example `SHR R5, 12` / `SHR R5, 12` / `SHR R5, 4`.
+- SHL/SHR: only the lower 4 bits of Imm are used as the shift amount, so the shift is **0–15** and
+  the assembler rejects anything larger (`shl r1, 16` is an error, not a silent `<<0`). A shift of
+  28 must be written as a sequence, for example `SHR R5, 12` / `SHR R5, 12` / `SHR R5, 4`.
 - ADD/SUB: Imm is a 7-bit unsigned value in range 0–127.
 - SHR is a logical shift (zero-filled on the left).
 
@@ -334,12 +334,24 @@ Notes:
   at the end of the file still provides its constants to the code above the `.include`.
 - A constant is not a label: its value must be a single number, it is substituted before addresses
   are known, and it cannot be used as a branch or call target.
-- Address 0 is the reset vector, so an included library belongs after the program body — write
+- The image starts with the program body, so an included library belongs after the program — write
   `.include "lib/uart.rasm"` at the end of the main file.
 - A name that is an instruction mnemonic or a register name cannot be a constant, a constant cannot
   be defined twice, and a constant name cannot be used as a label; all of these are reported as errors.
 - Immediate range checks still apply after substitution: `.equ BIG, 300` used with `MOVI` is rejected
   the same way `MOVI R1, 300` is.
+- String literals inside code use **single** quotes (`db 'text'`). The tokenizer has no double quoted
+  strings and no character constants, so `db "text"` is a syntax error and `MOVI R1, 'A'` does not
+  work either — write `MOVI R1, 65`. Double quotes appear only in `.include "file"`, which the
+  preprocessor reads as plain text before the tokenizer runs.
+- `db` and `dw` follow the little-endian byte order of the ISA (`doc/RiscA.MD` line 4): `db 'AB', 0x43`
+  emits bytes `41 42 43 00`, and `dw 0x0BADF00D` emits `0D F0 AD 0B` (the low halfword first), so
+  `LDW`/`LDI` read the value back unchanged.
+- The emulator starts a program at the start of the RAM and not at address 0, because the low 64 KiB
+  of the flat map belong to the devices (`doc/emulator-architecture.md`, §4). The assembler still puts
+  the image at 0 until `-a <addr>` exists; branch, `LDI` and `JR` offsets are relative to the
+  instruction itself, and `CALL` offsets are relative to its word, so a program assembled at 0 runs at
+  any origin that keeps the same alignment.
 
 ## ABI
 
