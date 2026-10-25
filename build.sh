@@ -40,7 +40,8 @@ for r in "${rids[@]}"; do
     # и objcopy из binutils-aarch64-linux-gnu вместо objcopy хоста.
     linux-arm64) extra=("-p:LinkerFlavor=lld" "-p:ObjCopyName=aarch64-linux-gnu-objcopy") ;;
   esac
-  dotnet publish "$project" -c Release -r "$r" "-p:MajorVersion=$major" "-p:MinorVersion=$minor" "${extra[@]}" --nologo -o "$outdir/$r"
+  # ${extra[@]+"${extra[@]}"} — пустой массив под set -u: в bash 3.2 (macOS) "${extra[@]}" считается unbound.
+  dotnet publish "$project" -c Release -r "$r" "-p:MajorVersion=$major" "-p:MinorVersion=$minor" ${extra[@]+"${extra[@]}"} --nologo -o "$outdir/$r"
 
   bin=rasm
   case "$r" in win*) bin=rasm.exe ;; esac
