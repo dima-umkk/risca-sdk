@@ -1,16 +1,18 @@
 #!/usr/bin/env pwsh
 <#
- Нативная (NativeAOT) сборка rasm.
+ Нативная (NativeAOT) сборка rasm и rsim.
 
    .\build.ps1                    # RIDы текущей платформы (Windows: win-x64, win-arm64)
    .\build.ps1 -Rid win-x64       # только нужные RID
+   .\build.ps1 -Tool rsim         # только нужные утилиты (rasm, rsim)
    .\build.ps1 -Patch 42          # переопределить Patch (по умолчанию = число коммитов минус PatchBase)
 
- Результат: artifacts/<rid>/rasm[.exe] и artifacts/rasm-<version>-<rid>.zip
+ Результат: artifacts/<rid>/<tool>[.exe] и artifacts/<tool>-<version>-<rid>.zip
  Major и Minor берутся из version.props, Patch — отсюда или из CI.
 #>
 param(
     [string[]]$Rid,
+    [string[]]$Tool = @('rasm', 'rsim'),
     [int]$Patch = -1,
     [string]$OutDir = 'artifacts',
     [switch]$NoZip
@@ -18,7 +20,13 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $root = $PSScriptRoot
-$project = Join-Path $root 'src/RiscA.Assembler/RiscA.Assembler.csproj'
+# имя утилиты -> проект; имя бинарника совпадает с ключом, его и кладём в архив
+$projects = [ordered]@{
+    'rasm' = 'src/RiscA.Assembler/RiscA.Assembler.csproj'
+    'rsim' = 'src/RiscA.Rsim/RiscA.Rsim.csproj'
+}
+$unknown = @($Tool | Where-Object { $projects.Keys -notcontains $_ })
+if ($unknown.Count -gt 0) { throw "unknown tool: $($unknown -join ', ') (known: $($projects.Keys -join ', '))" }
 $outRoot = if ([IO.Path]::IsPathRooted($OutDir)) { $OutDir } else { Join-Path $root $OutDir }
 
 if (-not $Rid -or $Rid.Count -eq 0) {
@@ -44,7 +52,7 @@ if ($Patch -lt 0) {
     if ($LASTEXITCODE -eq 0 -and $count -match '^\d+$') { $Patch = [Math]::Max(0, [int]$count - $base) } else { $Patch = 0 }
 }
 $version = "$major.$minor.$Patch"
-Write-Host "rasm $version  (major/minor: version.props, patch: $Patch)" -ForegroundColor Green
+Write-Host "$($Tool -join ', ') $version  (major/minor: version.props, patch: $Patch)" -ForegroundColor Green
 
 foreach ($r in $Rid) {
     $out = Join-Path $outRoot $r
@@ -55,15 +63,20 @@ foreach ($r in $Rid) {
         # и objcopy из binutils-aarch64-linux-gnu вместо objcopy хоста.
         $aot = @('-p:LinkerFlavor=lld', '-p:ObjCopyName=aarch64-linux-gnu-objcopy')
     }
-    dotnet publish $project -c Release -r $r "-p:MajorVersion=$major" "-p:MinorVersion=$minor" "-p:PatchVersion=$Patch" @aot --nologo -o $out
-    if ($LASTEXITCODE -ne 0) { throw "dotnet publish -r $r failed" }
+    # переменная цикла называется $name, а не $tool: имя, отличающееся от параметра $Tool
+    # только регистром, для PowerShell та же переменная (в итоге в размер печаталось System.String[])
+    foreach ($name in $Tool) {
+        $project = Join-Path $root $projects[$name]
+        dotnet publish $project -c Release -r $r "-p:MajorVersion=$major" "-p:MinorVersion=$minor" "-p:PatchVersion=$Patch" @aot --nologo -o $out
+        if ($LASTEXITCODE -ne 0) { throw "dotnet publish $name -r $r failed" }
 
-    $exe = if ($r.StartsWith('win')) { 'rasm.exe' } else { 'rasm' }
-    Write-Host ("  {0,-12} {1,10:N0} KB" -f $r, ((Get-Item (Join-Path $out $exe)).Length / 1KB))
+        $exe = if ($r.StartsWith('win')) { "$name.exe" } else { $name }
+        Write-Host ("  {0,-6} {1,-12} {2,10:N0} KB" -f [string]$name, $r, ((Get-Item (Join-Path $out $exe)).Length / 1KB))
 
-    if (-not $NoZip) {
-        $zip = Join-Path $outRoot "rasm-$version-$r.zip"
-        Compress-Archive -Path (Join-Path $out $exe) -DestinationPath $zip -Force
-        Write-Host "  zip: $zip"
+        if (-not $NoZip) {
+            $zip = Join-Path $outRoot "$name-$version-$r.zip"
+            Compress-Archive -Path (Join-Path $out $exe) -DestinationPath $zip -Force
+            Write-Host "  zip: $zip"
+        }
     }
 }

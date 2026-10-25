@@ -24,7 +24,7 @@ namespace RiscA.Machine
         //why it stopped, with the hint for the person running rsim
         public static string Hint(bool inputWasFile)
             => inputWasFile
-                ? $"check the {StuckMessage}: the input file is shorter than the program expects"
+                ? $"{StuckMessage}: the input file ends before the program gets its byte"
                 : $"{StuckMessage} (stdin is closed). Pass --stdin <file> for scripted input, " +
                   "and just press the key when the session is interactive.";
     }

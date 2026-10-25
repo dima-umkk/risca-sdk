@@ -1,7 +1,7 @@
 name: release
 
 # Push в main или ручной запуск:
-# версия → тесты → нативные (NativeAOT) сборки rasm → GitHub Release с тегом v<version>.
+# версия → тесты → нативные (NativeAOT) сборки rasm и rsim → GitHub Release с тегом v<version>.
 # Описание релиза job release собирает из git log: коммиты со времени предыдущего релиза.
 # Major и Minor задаются вручную в version.props, Patch = число коммитов в HEAD минус PatchBase (job version).
 
@@ -49,7 +49,7 @@ jobs:
           echo "minor=$minor" >> "$GITHUB_OUTPUT"
           echo "patch=$patch" >> "$GITHUB_OUTPUT"
           echo "version=$major.$minor.$patch" >> "$GITHUB_OUTPUT"
-          echo "==> rasm $major.$minor.$patch  (major/minor: version.props, patch: $patch = $count - $base)"
+          echo "==> rasm rsim $major.$minor.$patch  (major/minor: version.props, patch: $patch = $count - $base)"
 
   test:
     name: test
@@ -111,7 +111,8 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: rasm-${{ needs.version.outputs.version }}-${{ matrix.rid }}
+          # build.ps1/build.sh складывают в artifacts/ архивы rasm-*.zip и rsim-*.zip
+          name: dist-${{ needs.version.outputs.version }}-${{ matrix.rid }}
           path: artifacts/*.zip
           if-no-files-found: error
 
@@ -134,7 +135,7 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          pattern: rasm-*
+          pattern: dist-*
           path: dist
           merge-multiple: true
 
@@ -142,7 +143,7 @@ jobs:
         shell: bash
         run: |
           cd dist
-          sha256sum rasm-*.zip > SHA256SUMS.txt
+          sha256sum *.zip > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
       # Описание релиза — что реально изменилось с предыдущего релиза, а не вечный текст про версионирование.
@@ -172,7 +173,7 @@ jobs:
             log="$(git log --no-merges --max-count=20 --pretty=format:'- %s (%h)' HEAD)"
           fi
           {
-            echo "Нативные (NativeAOT) сборки rasm $VERSION: win-x64, win-arm64, linux-x64, linux-arm64, osx-arm64."
+            echo "Нативные (NativeAOT) сборки rasm и rsim $VERSION: win-x64, win-arm64, linux-x64, linux-arm64, osx-arm64."
             echo "Контрольные суммы архивов — в SHA256SUMS.txt."
             echo
             if [ -z "$range" ]; then
@@ -206,6 +207,6 @@ jobs:
           else
             gh release create "$TAG" dist/* \
               --target "$GITHUB_SHA" \
-              --title "rasm $VERSION" \
+              --title "rasm + rsim $VERSION" \
               --notes-file notes.md
           fi
