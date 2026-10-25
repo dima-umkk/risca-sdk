@@ -2,7 +2,7 @@
 
 | Project | Path | Type |
 |---------|------|------|
-| `RiscA.Core` | `src/RiscA.Core/` | Library — `RiscA.Core.ISA` (`Instruction`, `OpCode`, func enums) + `RiscA.Core.Asm` (`Assembler`, `Parser`, `Tokenizer`, `TK`) |
+| `RiscA.Core` | `src/RiscA.Core/` | Library — `RiscA.Core.ISA` (`Instruction`, `OpCode`, func enums) + `RiscA.Core.Asm` (`Assembler`, `Preprocessor`, `Parser`, `Tokenizer`, `TK`) |
 | `RiscA.Assembler` | `src/RiscA.Assembler/` | CLI (`Program.cs`) — references Core. Builds as `rasm.exe`. |
 | `RiscA.Core.Tests` | `tests/RiscA.Core.Tests/` | xunit + FluentAssertions — references Core |
 
@@ -41,4 +41,17 @@
   never edit the upstream repo from this SDK.
 - **`Instruction` struct** in `ISA/Instruction.cs` — immutable `readonly struct` with `(mask, shift)` tuple fields and `with*()` builder methods.
 - **Assembler CLI** (`src/RiscA.Assembler/Program.cs`): `rasm -i <file.rasm>` plus optional `-v` (verbose), `-vp` (parser match debug), `-vi` (instruction dump). Sample: `samples/base.test.rasm`.
+- **Assembler directives** (`src/RiscA.Core/Asm/Preprocessor.cs`, runs before the two assembler passes):
+  `.func name:` (entry, may insert a `NOP` for word alignment), `.equ NAME, value` (integer constant in
+  decimal/`0x`/`0b`, substituted into any number position), `.include "file"` (spliced in, resolved relative
+  to the including file first, each file included once, cycles ignored). Constants are collected in a second
+  pass over the spliced lines, so a library included at the end of a file still provides its constants to the
+  code above it (address 0 is the reset vector, so libraries go last — see `samples/uart.echo.rasm` and
+  `samples/lib/uart.rasm`). Directive names are matched at string level, because the tokenizer cannot read `.name`.
+  Directive syntax and caveats are documented in `doc/README.md` ("Assembler directives").
+- **Machine design record:** `doc/emulator-architecture.md` — the agreed architecture of the emulator,
+  debugger and compiler (Harvard two-bus machine, memory map with device blocks in 256-byte blocks at low
+  addresses, UART0 = 4 registers, no interrupts yet, one `rsim` CLI, symbol map format, milestones M0…M4).
+  The emulator and debugger are not implemented yet; the spec `doc/RiscA.MD` is the authority, `artifacts/rtl/`
+  is a read-only upstream reference and must not be edited.
 - **Verbose flags** (`src/RiscA.Core/Verbose.cs`): `Verbose.ParserMatches` (`-vp`) and `Verbose.AssemblerInstructions` (`-vi`) control debug output.

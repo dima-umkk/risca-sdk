@@ -26,17 +26,22 @@ namespace RiscA.Core.Asm
 
         public void Compile(string filename)
         {
-            string[] lines = File.ReadAllLines(filename);
-            src.AddRange(lines.Select((l, i) => new SrcLine(l, i, filename)).ToList());
+            var pre = new Preprocessor();
+            pre.Process(filename);
 
-            //TODO: make preprocessor pass for constans and includes
+            src.Clear();
+            src.AddRange(pre.Lines);
 
             //1st pass: parse lines
             for (int i = 0; i < src.Count; i++)
             {
                 try
                 {
-                    //preprocessor
+                    if (src[i].ParsedInstruction is not null)
+                    {//.equ and .include lines produce no code, so they are not parsed
+                        src[i].Address = curAddress;
+                        continue;
+                    }
                     if(src[i].Line.Contains(".func"))
                     {//function declaration
                         src[i].Line = src[i].Line.Replace(".func", "");
@@ -51,7 +56,7 @@ namespace RiscA.Core.Asm
                             continue;
                         }
                     }
-                    var pi = src[i].ParsedInstruction = Parser.ParseLine(src[i].Line);
+                    var pi = src[i].ParsedInstruction = Parser.ParseLine(src[i].Line, pre.Constants);
                     src[i].Address = curAddress;
                     curAddress += pi.Instructions.Count * 2;
                     if (pi.Label is not null)
@@ -61,7 +66,7 @@ namespace RiscA.Core.Asm
                 }
                 catch (Exception ex)
                 {
-                    throw new Exception($"{filename}:{i+1}: {ex.Message}");
+                    throw new Exception($"{src[i].Filename}:{src[i].Pos + 1}: {ex.Message}");
                 }
             }
 

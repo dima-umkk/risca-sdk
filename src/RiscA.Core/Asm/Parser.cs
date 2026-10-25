@@ -56,7 +56,13 @@ namespace RiscA.Core.Asm
 
         public static ParsedInstruction ParseLine(string line)
         {
+            return ParseLine(line, null);
+        }
+
+        public static ParsedInstruction ParseLine(string line, IReadOnlyDictionary<string, int>? constants)
+        {
             List<Token> tokens = Tokenizer.tokenizeLine(line);
+            SubstituteConstants(tokens, constants);
             ParsedInstruction parsedInstruction = new ParsedInstruction();
             while (ProcessToken(tokens, parsedInstruction))
                 ;
@@ -66,6 +72,24 @@ namespace RiscA.Core.Asm
                 throw new Exception($"Syntax error: {string.Join(",", tokens.ConvertAll(x => $"{x.TokenType}({x.TokenString})"))}");
             }
             return parsedInstruction;
+        }
+
+        //turns '.equ' constants into number tokens before the rules run, so a constant can be
+        //used anywhere a number is expected: immediates, [r+off] offsets, db/dw values
+        static void SubstituteConstants(List<Token> tokens, IReadOnlyDictionary<string, int>? constants)
+        {
+            if (constants is null || constants.Count == 0)
+                return;
+            for (int i = 0; i < tokens.Count; i++)
+            {
+                if (tokens[i].TokenType != TK.LITERAL)
+                    continue;
+                if (!constants.TryGetValue(tokens[i].TokenString, out int value))
+                    continue;
+                if (i + 1 < tokens.Count && tokens[i + 1].TokenType == TK.COLON)
+                    throw new Exception($"'{tokens[i].TokenString}' is a .equ constant, it cannot be used as a label");
+                tokens[i] = new Token(TK.NUMBER, tokens[i].TokenString, tokens[i].TokenPos, value);
+            }
         }
 
         private static bool ProcessToken(List<Token> stack, ParsedInstruction pi)

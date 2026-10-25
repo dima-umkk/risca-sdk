@@ -127,6 +127,14 @@ namespace RiscA.Core.Asm
             (c >= 'a' && c <= 'f') ||
             (c >= 'A' && c <= 'F');
 
+        //true if the word is an instruction mnemonic or a register name, so it cannot be
+        //used as a label or as a .equ constant name
+        public static bool IsReserved(string word)
+        {
+            string w = word.ToLowerInvariant();
+            return literalToTokenType.ContainsKey(w) || registerToTokenType.ContainsKey(w);
+        }
+
         public static List<Token> tokenizeLine(string line)
         {
             var tokens = new List<Token>();

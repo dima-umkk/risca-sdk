@@ -1,0 +1,77 @@
+; riscA console library: polling access to UART0.
+; Memory map and register semantics: doc/emulator-architecture.md, section 5.
+;
+; Put the include AFTER your own code - the program starts at address 0, so library
+; code must not sit in front of it:
+;     .include "lib/uart.rasm"
+; Registers of a device are 32 bit words and are accessed with ldw/stw: the offset in
+; [r+off] is the word slot number (the assembler encodes it as Imm(3), the hardware
+; shifts it by 2), so one base register covers slots 0..7 of a device block.
+
+.equ UART0_BASE,     0x0000   ; device block 0 -> fits into MOVI imm(8)
+.equ UART_RX_DATA,   0        ; slot 0 (byte 0x0): reading pops one byte from the RX FIFO
+.equ UART_RX_READY,  1        ; slot 1 (byte 0x4): 1 - a byte is waiting in the RX FIFO
+.equ UART_TX_DATA,   2        ; slot 2 (byte 0x8): writing sends the low byte of the word
+.equ UART_TX_READY,  3        ; slot 3 (byte 0xC): 1 - the transmitter can take a byte
+
+; char uart_getc() - waits for a byte, returns it in r0
+; clobbers: r0, r7
+.func uart_getc:
+    movi r7, UART0_BASE
+uart_getc_wait:
+    ldw r0, [r7+UART_RX_READY]
+    beqz r0, uart_getc_wait
+    ldw r0, [r7+UART_RX_DATA]
+    ret
+
+; void uart_putc(char c) - waits until the transmitter is ready, sends the low byte of r1
+; clobbers: r0, r1, r7
+.func uart_putc:
+    movi r7, UART0_BASE
+uart_putc_wait:
+    ldw r0, [r7+UART_TX_READY]
+    beqz r0, uart_putc_wait
+    stw [r7+UART_TX_DATA], r1
+    ret
+
+; char uart_trygetc() - returns the byte in r0 if one is waiting, or 0 if the RX FIFO is empty
+; clobbers: r0, r7
+.func uart_trygetc:
+    movi r7, UART0_BASE
+    ldw r0, [r7+UART_RX_READY]
+    beqz r0, uart_trygetc_empty
+    ldw r0, [r7+UART_RX_DATA]
+    ret
+uart_trygetc_empty:
+    movi r0, 0
+    ret
+
+; void uart_puthex(unsigned n) - prints 8 hex digits, most significant first, value in r1
+; the ISA takes the shift amount from the low 4 bits of the immediate (Imm(4)), so a shift
+; of 28 does not exist: 28 = 12 + 12 + 4 is spelled out as three shifts
+; no flags and no 3 operand compare in the ISA, so the digit/letter adjustment is
+; branch free: char = nibble + 55 - 7 * (nibble < 10)
+; clobbers: r0, r1, r2, r3, r4, r5, r7, r8, r9, r10
+.func uart_puthex:
+    mov r2, r1          ;working copy
+    movi r3, 0x0F       ;nibble mask
+    movi r4, 8          ;digits left
+    movi r8, 10         ;decimal/letter boundary
+uart_puthex_loop:
+    mov r5, r2
+    shr r5, 12          ;top nibble down to bits 3..0
+    shr r5, 12
+    shr r5, 4
+    and r5, r3          ;nibble
+    mov r9, r5
+    slt r9, r8          ;r9 = 1 for 0..9, 0 for A..F
+    movi r10, 7
+    mul r10, r9         ;7 for digits, 0 for letters
+    add r5, 55          ;'A' - 10
+    sub r5, r10         ;digits end up with 48 = '0'
+    mov r1, r5
+    call uart_putc
+    shl r2, 4           ;next nibble
+    sub r4, 1
+    bnez r4, uart_puthex_loop
+    ret

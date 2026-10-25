@@ -1,0 +1,22 @@
+; console echo demo: prints a greeting, asks for a key and echoes it back.
+; build: rasm -i samples/uart.echo.rasm -vi
+    movi r1, 72         ;'H'
+    call uart_putc
+    movi r1, 105        ;'i'
+    call uart_putc
+    movi r1, 33         ;'!'
+    call uart_putc
+    movi r1, 10         ;newline
+    call uart_putc
+
+    movi r1, 63         ;'?'
+    call uart_putc
+
+    call uart_getc      ;wait for a keypress, the byte comes back in r0
+    mov r1, r0
+    call uart_putc      ;echo it
+
+    movi r1, 10         ;newline
+    call uart_putc
+    reti                ;no interrupt context in the model, so RETI stops the program
+.include "lib/uart.rasm"

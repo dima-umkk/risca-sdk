@@ -84,7 +84,9 @@ bits 2–0:  001    — opcode
 
 **Limitations**
 - Rd: 0–15.
-- SHL/SHR: only the lower 4 bits of Imm are used as the shift amount (0–15).
+- SHL/SHR: only the lower 4 bits of Imm are used as the shift amount (0–15). The assembler accepts
+  larger numbers (up to 32) but they mean `Imm & 0xF`, so a shift of 28 must be written as a
+  sequence, for example `SHR R5, 12` / `SHR R5, 12` / `SHR R5, 4`.
 - ADD/SUB: Imm is a 7-bit unsigned value in range 0–127.
 - SHR is a logical shift (zero-filled on the left).
 
@@ -312,6 +314,32 @@ bits 2–0:  111    — opcode
 - Bit 1: Priv (1 = kernel mode, 0 = user mode).
 
 ---
+
+## Assembler directives
+
+Besides instructions, `rasm` understands these lines. A directive line itself emits no code;
+`.func` may insert one `NOP` to keep the function address word aligned.
+
+| Directive | Meaning |
+|-----------|---------|
+| `.func name:` | Function entry. A `NOP` is inserted when needed so that the address is a multiple of 4 bytes, which `CALL` requires. |
+| `.equ NAME, value` | Defines an integer constant (decimal, `0x` hex or `0b` binary). The name can be used anywhere a number is expected, including `[r7+NAME]` offsets and `db`/`dw` values. |
+| `.include "file"` | Splices another source file into this one. The path is resolved relative to the including file first, then relative to the root source file, then relative to the working directory. Every file is spliced in once per compilation, include cycles are ignored instead of followed. |
+| `db value` / `db 'text'` | Emits one byte per value, or one byte per character of a string. |
+| `dw value` / `dw label` | Emits one 32-bit word per value, or the address of a label. |
+
+Notes:
+
+- `.equ` constants are collected before the assembler walks the code, so a library that is included
+  at the end of the file still provides its constants to the code above the `.include`.
+- A constant is not a label: its value must be a single number, it is substituted before addresses
+  are known, and it cannot be used as a branch or call target.
+- Address 0 is the reset vector, so an included library belongs after the program body — write
+  `.include "lib/uart.rasm"` at the end of the main file.
+- A name that is an instruction mnemonic or a register name cannot be a constant, a constant cannot
+  be defined twice, and a constant name cannot be used as a label; all of these are reported as errors.
+- Immediate range checks still apply after substitution: `.equ BIG, 300` used with `MOVI` is rejected
+  the same way `MOVI R1, 300` is.
 
 ## ABI
 
