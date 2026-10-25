@@ -71,6 +71,41 @@ internal sealed class RomDevice : IDevice
     }
 }
 
+//A console for tests: the input is scripted, the output is collected in memory.
+internal sealed class ScriptConsole : IConsole
+{
+    private readonly Queue<int> _input = new Queue<int>();
+
+    //the bytes the program sent out, in order
+    public List<int> Output { get; } = [];
+    public bool InputEnded { get; set; }
+
+    //the output as text
+    public string Text => new string(Output.Select(c => (char)c).ToArray());
+
+    public ScriptConsole Feed(string text)
+    {
+        foreach (char c in text)
+            _input.Enqueue(c);
+        return this;
+    }
+
+    //no more input is coming: ReadChar() will keep saying "nothing to read"
+    public ScriptConsole End()
+    {
+        InputEnded = true;
+        return this;
+    }
+
+    public int ReadChar() => _input.Count > 0 ? _input.Dequeue() : -1;
+
+    public void WriteChar(int value) => Output.Add((byte)value);
+
+    public void Flush()
+    {
+    }
+}
+
 internal static class Harness
 {
     //the default place a program is loaded and started at: the start of the ram, right behind the
@@ -105,18 +140,7 @@ internal static class Harness
         {
             var file = Path.Combine(dir, "prog.rasm");
             File.WriteAllText(file, source);
-            var asm = new Assembler(0);
-            asm.Compile(file);
-
-            var bytes = new List<byte>();
-            foreach (var line in asm.Src)
-                if (line.ParsedInstruction is ParsedInstruction parsed)
-                    foreach (var inst in parsed.Instructions)
-                    {
-                        bytes.Add((byte)inst.Raw);
-                        bytes.Add((byte)(inst.Raw >> 8));
-                    }
-            return [.. bytes];
+            return AssembleFile(file);
         }
         finally
         {
@@ -137,5 +161,52 @@ internal static class Harness
         var cpu = new Machine(Space(ramSize));
         ProgramImage.Load(cpu.Space, cpu.PC, Assemble(source));
         return cpu;
+    }
+
+    //the same as Assemble(), but for a file that already exists, so the repository samples go
+    //through the assembler with their .include paths intact
+    public static byte[] AssembleFile(string path)
+    {
+        var asm = new Assembler(0);
+        asm.Compile(path);
+
+        var bytes = new List<byte>();
+        foreach (var line in asm.Src)
+            if (line.ParsedInstruction is ParsedInstruction parsed)
+                foreach (var inst in parsed.Instructions)
+                {
+                    bytes.Add((byte)inst.Raw);
+                    bytes.Add((byte)(inst.Raw >> 8));
+                }
+        return [.. bytes];
+    }
+
+    //the repository root, found by walking up from the test binaries
+    public static string RepoRoot
+    {
+        get
+        {
+            for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+                if (File.Exists(Path.Combine(dir.FullName, "RiscASDK.slnx")))
+                    return dir.FullName;
+            throw new DirectoryNotFoundException($"no RiscASDK.slnx above {AppContext.BaseDirectory}");
+        }
+    }
+
+    //a console uart in device block 0, the address uart_getc and uart_putc of samples/lib/uart.rasm use
+    public static UartDevice AddUart(this Machine cpu, ScriptConsole console, int txCyclesPerByte = 0)
+    {
+        var uart = new UartDevice(console, txCyclesPerByte);
+        cpu.Space.AddDevice(UartDevice.DeviceName, UartDevice.Block, uart);
+        return uart;
+    }
+
+    //a sample of the repository, assembled as is and started at the reset vector with the console uart
+    public static (Machine cpu, UartDevice uart) Sample(string file, ScriptConsole console, int ramSize = 8192, int txCyclesPerByte = 0)
+    {
+        var cpu = new Machine(Space(ramSize));
+        ProgramImage.Load(cpu.Space, cpu.PC, AssembleFile(Path.Combine(RepoRoot, "samples", file)));
+        var uart = cpu.AddUart(console, txCyclesPerByte);
+        return (cpu, uart);
     }
 }
