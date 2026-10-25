@@ -113,6 +113,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
+      # в этом job нет checkout, поэтому gh сам не определяет репозиторий по git remote
+      GH_REPO: ${{ github.repository }}
       VERSION: ${{ needs.version.outputs.version }}
       TAG: v${{ needs.version.outputs.version }}
     steps:
