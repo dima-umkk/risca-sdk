@@ -1,9 +1,9 @@
 ## Risc-A CPU. 
-Simple RISC architecture aimed to run several instructions in parrallel(IMEM, MEM, ALU, BRANCH).
+Simple RISC architecture aimed at running several instructions in parallel (IMEM, MEM, ALU, BRANCH).
 
 Byte order: Little-Endian.
 
-Bus is 32 bit, Instructions 16 bit. 2 instructions in 32 bit. Constants aligment for LDI always 2 bytes (in instructions). Function alligment is 4 bytes (for CALL)
+Bus is 32 bit, Instructions 16 bit. 2 instructions in 32 bit. Constants alignment for LDI is always 2 bytes (in instructions). Function alignment is 4 bytes (for CALL)
 
 General purpose registers 32 bit: R0-R15
 
@@ -73,7 +73,7 @@ Imm(8) | func1(1) | Rd(4) | opcode(3)
 		0) MOVI Rd, Imm(8); Rd = Imm(8)
 		1) MOVL Rd, Imm(8); Rd = (Rd << 8) | Imm(8)
 
-	MOVI and MOVL used to load constants. Any number (from 8 bit to 32 bit)
+	MOVI and MOVL are used to load constants. Any number (from 8 bit to 32 bit)
 
 ### ST\LD:
 Opcode: 3
@@ -82,14 +82,14 @@ Opcode: 3
 Imm(3) | func22(1) | func21(1) |  Rs(4) |  Rd(4) | opcode(3)
 ```
 
-	For Word acceess used Imm(3)<<2
+	For Word access Imm(3)<<2 is used
 	func21:
 
 	0) LD Rd, [Rs+Imm(3)]; LDW or LDB 
 	1) ST [Rs+Imm(3)], Rd; STW or STB
 	func22:
 	0) Byte access
-	1) Word acceess (32 bit)
+	1) Word access (32 bit)
 
 ### BRANCH:
 Opcode: 4
@@ -110,7 +110,7 @@ Opcode: 5
 Imm(9) | Rd(4) | opcode(3)
 ```
 
-	LDI Rd, [PC+Signed(Imm(9))<<1]; Imm in instructions (-256...255 instructions)
+	LDI Rd, [PC+Signed(Imm(9))<<1]; Imm in instructions (-256 .. +255 instructions)
 
 ### CALL\JMP\RET:
 Opcode: 6
@@ -123,7 +123,7 @@ Imm(7) | func2(2) | Rd(4) | opcode(3)
 
 	0) CALL (Imm(7) | Rd(4)) 11 bit ; PC=PC+signed((Imm(7) | Rd(4)))<<2; Function aligned by 4 bytes; R14=PC+2 return address
 	1) CALL Rd         ; PC=Rd. R14=PC+2 return address
-	2) RET  Rd         ; PC=Rd. Also used as JMP Rd; For default used R14
+	2) RET  Rd         ; PC=Rd. Also used as JMP Rd; By default R14 is used
 	3) JR   (Imm(7) | Rd(4)) 11 bit ; PC=PC+signed(Imm(7) | Rd(4))<<1; in instructions
 
 ### INT\RETI\STS:
@@ -138,9 +138,9 @@ unused(7) | func2(2) | Rd(4) | opcode(3)
 	0) INT Rd; interrupt number Rd
 	1) RETI; return from interrupt
 	2) MOV Rd, EPC; Get EPC
-	3) MOV EPC, Rd: Set EPC register
+	3) MOV EPC, Rd; Set EPC register
 
-	EPC register: PC of next instruction to execute after interrupt handler is finished
+	EPC register: the PC of the next instruction to execute after the interrupt handler has finished
 	On interrupt EPC = PC + 2
     STS register: bit0=IE (Enable Interrupts), bit1=Priv (User/Kernel)	
 
@@ -156,16 +156,16 @@ unused(7) | func2(2) | Rd(4) | opcode(3)
 	Arguments: R0-R5
 	Return: R0
 	Stack: R15
-	Link Register: R14. Link register should be pushed on stack and restored if subcall function occures
-	Function should restore R8-R13 if used
-	Constants used in function stored at function ends after ret, or begin (for near LDI). For default in the end.
-	If constants in start then each function starts with JR skipping constants. (Constants will be always in ICache (IMEM))
+	Link Register: R14. The link register should be pushed onto the stack and restored if a subcall occurs
+	A function should restore R8-R13 if it uses them
+	Constants used in a function are stored at the end of the function after ret, or at the beginning (for near LDI). By default at the end.
+	If the constants are at the beginning, each function starts with a JR that skips them. (Constants are always in ICache (IMEM))
 	Stack:
 		PUSH: 
 			SUB R15, 4
 			STW [R15 + 0], Rd
 		POP:
 			LDW Rd, [R15 + 0]
-		    ADD R15, 4
+			ADD R15, 4
 
 	Syscall: INT R0 - system function, R1-R5 arguments. Result: R0
