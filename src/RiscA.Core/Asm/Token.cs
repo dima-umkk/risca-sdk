@@ -146,7 +146,7 @@ namespace RiscA.Core.Asm
                     int endpos = pos + 1;
                     while (endpos < line.Length)
                     {
-                        if (!char.IsLetterOrDigit(line[endpos]))
+                        if (!(char.IsLetterOrDigit(line[endpos]) || line[endpos] == '_'))
                             break;
                         endpos++;
                     }

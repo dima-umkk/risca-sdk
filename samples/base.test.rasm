@@ -2,17 +2,36 @@
 ; some comment
 main:
 	movi r1, 5
+main_sub_loop:
 	sub r1,1
-	bnez r1, main
-	movi r0, 10
-	call loop
+	bnez r1, main_sub_loop
+	ldi r0, [mystr]
+	call strlen
 	ret
 	jr main
 
-.func loop:
-	ldi r1, [mystr]
-	sub r0, 1
-	bnez r0, loop
+; in r0 - string addres
+; out r0 - string length
+.func strlen:
+	movi r6, 0
+strlen_loop:
+	ldb r7, [r0+0]
+	add r0, 1
+	add r6, 1
+	bnez r7, strlen_loop
+	mov r0, r6
+	ret
+
+; in r0 - source address
+; in r1 - dest address
+; in r3 - count
+.func copy:
+	beqz r3, copy_exit
+	ldb r6, [r0+0]
+	stb [r1+0], r6
+	sub r3, 1
+	jr copy
+copy_exit:
 	ret
 
 mystr: dw mystrref

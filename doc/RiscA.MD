@@ -156,6 +156,7 @@ unused(7) | func2(2) | Rd(4) | opcode(3)
 	Stack: R15
 	Link Register: R14. Link register should be pushed on stack and restored if subcall function occures
 	Function should restore R8-R13 if used
+	Function may use R6 R7 without restoration
 	Constants used in function stored at function ends after ret, or begin (for near LDI). For default in the end.
 	If constants in start then each function starts with JR skipping constants. (Constants will be always in ICache (IMEM))
 	Stack:
