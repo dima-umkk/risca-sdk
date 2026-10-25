@@ -127,4 +127,6 @@ qemu-aarch64-static -L /usr/aarch64-linux-gnu artifacts/linux-arm64/rasm --versi
 3. **build** — матрица `win-x64`, `win-arm64`, `linux-x64`, `linux-arm64` (кросс с x64), `osx-arm64`; каждый RID складывает zip в артефакты.
 4. **release** — собирает все zip и `SHA256SUMS.txt` и публикует GitHub Release с тегом `v<версия>`. Повторный запуск на том же коммите даёт ту же версию и просто перезаписывает ассеты.
 
-Чтобы релизы шли по `main`, ветку `master` в репозитории нужно переименовать в `main` — workflow пока триггерится на обе.
+Работает: проверено на `main`, релиз публикуется автоматически (все пять RID собираются на GitHub-раннерах, включая `win-arm64` и кросс-сборку `linux-arm64`).
+
+Ветка разработки — `main`. В настройках репозитория (Settings → Branches → Default branch) стоит переключить ветку по умолчанию с `master` на `main`, после чего устаревшую `origin/master` можно удалить: `git push origin --delete master`. Workflow пока триггерится на обе ветки.
