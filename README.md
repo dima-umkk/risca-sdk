@@ -35,14 +35,14 @@ rasm --version
 # Windows (PowerShell)
 .\build.ps1                       # win-x64 + win-arm64
 .\build.ps1 -Rid win-x64          # только нужный RID
-.\build.ps1 -Rid win-x64 -Minor 42
+.\build.ps1 -Rid win-x64 -Patch 42
 ```
 
 ```bash
 # Linux / macOS (в том числе WSL2)
 ./build.sh                        # linux-x64 (на aarch64 — linux-arm64, на macOS — osx-arm64)
 ./build.sh linux-x64              # только нужный RID
-MINOR=42 ./build.sh linux-x64     # переопределить Minor
+PATCH=42 ./build.sh linux-x64     # переопределить Patch
 ```
 
 Результат: `artifacts/<rid>/rasm[.exe]` — самодостаточный нативный бинарник, работающий без установленного .NET — и `artifacts/rasm-<версия>-<rid>.zip`.
@@ -63,13 +63,13 @@ dotnet run --project src/RiscA.Assembler -- -i samples/base.test.rasm -o out.bin
 
 ## Версионирование
 
-Версия `1.35.0` — это `Major.Minor.Patch`:
+Версия `0.9.3` — это `Major.Minor.Patch`:
 
-- **Major** — вручную в `version.props` (`<MajorVersion>1</MajorVersion>`).
-- **Minor** — автоматически: число коммитов в HEAD (`git rev-list --count HEAD`). Его подставляют `build.ps1`, `build.sh` и CI как `-p:MinorVersion=`.
-- **Patch** — 0.
+- **Major** и **Minor** — вручную в `version.props` (`<MajorVersion>0</MajorVersion>`, `<MinorVersion>9</MinorVersion>`). Major — при несовместимых изменениях синтаксиса/формата `.bin`/`.lst`, Minor — при обычном развитии.
+- **Patch** — автоматически: число коммитов в HEAD (`git rev-list --count HEAD`) минус `<PatchBase>`. `PatchBase` — это число коммитов на момент выпуска `Major.Minor.0`; его меняют вместе с Minor, чтобы Patch снова считался с нуля (с `PatchBase = 0` Patch равен общему числу коммитов). Patch подставляют `build.ps1`, `build.sh` и CI как `-p:PatchVersion=` (переопределение: `-Patch 42` / `PATCH=42`).
+- `MajorVersion`/`MinorVersion`/`PatchVersion` из `version.props` подхватывает `Directory.Build.props`, откуда их берут все проекты — и `dotnet build`, и `dotnet test`, и `dotnet publish`.
 
-В `InformationalVersion` дополнительно попадает SHA коммита (`+<sha>`), поэтому сборку можно опознать по коммиту. Проверка: `rasm --version` → `rasm 1.35.0`.
+В `InformationalVersion` дополнительно попадает SHA коммита (`+<sha>`), поэтому сборку можно опознать по коммиту. Проверка: `rasm --version` → `rasm 0.9.3`.
 
 ## Платформы (NativeAOT)
 
@@ -120,13 +120,13 @@ qemu-aarch64-static -L /usr/aarch64-linux-gnu artifacts/linux-arm64/rasm --versi
 
 ## CI
 
-`.github/workflows/release.yml` запускается на push в `main` (и `master`) и вручную (`workflow_dispatch`):
+`.github/workflows/release.yml` запускается на push в `main` и вручную (`workflow_dispatch`):
 
-1. **version** — считает версию: Major из `version.props`, Minor = число коммитов (checkout с `fetch-depth: 0`, чтобы история была полной).
+1. **version** — считает версию: Major и Minor из `version.props`, Patch = число коммитов (checkout с `fetch-depth: 0`, чтобы история была полной) минус `PatchBase`.
 2. **test** — `dotnet test` на ubuntu.
 3. **build** — матрица `win-x64`, `win-arm64`, `linux-x64`, `linux-arm64` (кросс с x64), `osx-arm64`; каждый RID складывает zip в артефакты.
 4. **release** — собирает все zip и `SHA256SUMS.txt` и публикует GitHub Release с тегом `v<версия>`. Повторный запуск на том же коммите даёт ту же версию и просто перезаписывает ассеты.
 
 Работает: проверено на `main`, релиз публикуется автоматически (все пять RID собираются на GitHub-раннерах, включая `win-arm64` и кросс-сборку `linux-arm64`).
 
-Ветка разработки — `main`. В настройках репозитория (Settings → Branches → Default branch) стоит переключить ветку по умолчанию с `master` на `main`, после чего устаревшую `origin/master` можно удалить: `git push origin --delete master`. Workflow пока триггерится на обе ветки.
+Рабочая ветка — `main`, она же ветка по умолчанию (Settings → Branches → Default branch); `master` удалена.

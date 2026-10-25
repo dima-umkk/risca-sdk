@@ -3,10 +3,10 @@
 #
 #   ./build.sh                 # RID текущей платформы
 #   ./build.sh linux-x64       # конкретные RID
-#   MINOR=42 ./build.sh        # переопределить Minor (по умолчанию = число коммитов в HEAD)
+#   PATCH=42 ./build.sh        # переопределить Patch (по умолчанию = число коммитов минус PatchBase)
 #
 # Результат: artifacts/<rid>/rasm[.exe] и artifacts/rasm-<version>-<rid>.zip
-# Major берётся из version.props, Minor/Patch — сюда или из CI.
+# Major и Minor берутся из version.props, Patch — отсюда или из CI.
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -24,11 +24,19 @@ esac
 rids=("$@")
 [ ${#rids[@]} -eq 0 ] && rids=("${default_rid[@]}")
 
-major="$(sed -n 's/.*<MajorVersion>\([0-9]\{1,\}\)<.*/\1/p' "$root/version.props" | head -1)"
-major="${MAJOR:-${major:-0}}"
-minor="${MINOR:-$(git -C "$root" rev-list --count HEAD 2>/dev/null || echo 0)}"
-version="$major.$minor.0"
-echo "rasm $version  (major: version.props, minor: $minor)"
+props="$root/version.props"
+prop() { sed -n "s/.*<$1>\([0-9]\{1,\}\)<.*/\1/p" "$props" | head -1; }
+major="${MAJOR:-$(prop MajorVersion)}"
+minor="${MINOR:-$(prop MinorVersion)}"
+base="$(prop PatchBase)"
+major="${major:-0}"; minor="${minor:-0}"; base="${base:-0}"
+
+# Patch = число коммитов в HEAD минус PatchBase (после релиза 0.9.0 растёт на 1 за коммит).
+count="$(git -C "$root" rev-list --count HEAD 2>/dev/null || echo 0)"
+patch=$((count - base)); [ "$patch" -lt 0 ] && patch=0
+patch="${PATCH:-$patch}"
+version="$major.$minor.$patch"
+echo "rasm $version  (major/minor: version.props, patch: $patch)"
 
 mkdir -p "$outdir"
 for r in "${rids[@]}"; do
@@ -41,7 +49,7 @@ for r in "${rids[@]}"; do
     linux-arm64) extra=("-p:LinkerFlavor=lld" "-p:ObjCopyName=aarch64-linux-gnu-objcopy") ;;
   esac
   # ${extra[@]+"${extra[@]}"} — пустой массив под set -u: в bash 3.2 (macOS) "${extra[@]}" считается unbound.
-  dotnet publish "$project" -c Release -r "$r" "-p:MajorVersion=$major" "-p:MinorVersion=$minor" ${extra[@]+"${extra[@]}"} --nologo -o "$outdir/$r"
+  dotnet publish "$project" -c Release -r "$r" "-p:MajorVersion=$major" "-p:MinorVersion=$minor" "-p:PatchVersion=$patch" ${extra[@]+"${extra[@]}"} --nologo -o "$outdir/$r"
 
   bin=rasm
   case "$r" in win*) bin=rasm.exe ;; esac

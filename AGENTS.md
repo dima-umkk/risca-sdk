@@ -23,11 +23,13 @@
   (host bfd linker and objcopy cannot handle aarch64 objects; the driver must stay clang —
   `CppCompilerAndLinker=aarch64-linux-gnu-gcc` fails on the SDK's `--target=` flag).
   `build.sh` falls back to `python3` for zipping when `zip` is missing (typical in WSL).
-- **Versioning:** root `version.props` holds `<MajorVersion>` (manual) and root `Directory.Build.props`
-  composes `Version = Major.Minor.Patch`, where Minor is the commit count (`git rev-list --count HEAD`)
-  passed in as `-p:MinorVersion=` by `build.ps1`/`build.sh`/CI (env `MINOR` overrides; 0 when git is absent).
+- **Versioning:** root `version.props` holds `<MajorVersion>` and `<MinorVersion>` (both manual) plus
+  `<PatchBase>`; `Directory.Build.props` composes `Version = Major.Minor.Patch`, where Patch is
+  `git rev-list --count HEAD` minus `PatchBase` (clamped at 0), passed in as `-p:PatchVersion=` by
+  `build.ps1`/`build.sh`/CI (param `-Patch` / env `PATCH` overrides; 0 when git is absent). Bump
+  `PatchBase` to the current commit count whenever `MinorVersion` changes, so Patch restarts at 0.
   `rasm --version` prints `rasm <major.minor.patch>`.
-- **CI:** `.github/workflows/release.yml` — push to `main`/`master` (or manual run) → version → test →
+- **CI:** `.github/workflows/release.yml` — push to `main` (or manual run) → version → test →
   build matrix (win-x64, win-arm64, linux-x64, linux-arm64, osx-arm64) → GitHub Release tagged `v<version>`.
 - No lint/formatter config.
 - All projects: `<ImplicitUsings>enable</ImplicitUsings>`, `<Nullable>enable</Nullable>`.

@@ -3,7 +3,7 @@
   <Import Project="$(MSBuildThisFileDirectory)version.props" Condition="Exists('$(MSBuildThisFileDirectory)version.props')" />
 
   <PropertyGroup>
-    <!-- Major из version.props, Minor/Patch приходят из скриптов сборки или CI (-p:MinorVersion=N). -->
+    <!-- Major и Minor из version.props; Patch приходят из скриптов сборки или CI (-p:PatchVersion=N). -->
     <MajorVersion Condition="'$(MajorVersion)' == ''">0</MajorVersion>
     <MinorVersion Condition="'$(MinorVersion)' == ''">0</MinorVersion>
     <PatchVersion Condition="'$(PatchVersion)' == ''">0</PatchVersion>

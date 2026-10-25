@@ -1,12 +1,12 @@
 name: release
 
-# Push в main (заодно и master, пока ветку не переименовали) или ручной запуск:
+# Push в main или ручной запуск:
 # версия → тесты → нативные (NativeAOT) сборки rasm → GitHub Release с тегом v<version>.
-# Major задаётся вручную в version.props, Minor = число коммитов в HEAD (job version).
+# Major и Minor задаются вручную в version.props, Patch = число коммитов в HEAD минус PatchBase (job version).
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main ]
   workflow_dispatch:
 
 permissions:
@@ -27,6 +27,7 @@ jobs:
     outputs:
       major: ${{ steps.ver.outputs.major }}
       minor: ${{ steps.ver.outputs.minor }}
+      patch: ${{ steps.ver.outputs.patch }}
       version: ${{ steps.ver.outputs.version }}
     steps:
       - uses: actions/checkout@v4
@@ -35,13 +36,19 @@ jobs:
       - id: ver
         shell: bash
         run: |
-          major="$(sed -n 's/.*<MajorVersion>\([0-9]\{1,\}\)<.*/\1/p' version.props | head -1)"
-          minor="$(git rev-list --count HEAD)"
+          prop() { sed -n "s/.*<$1>\([0-9]\{1,\}\)<.*/\1/p" version.props | head -1; }
+          major="$(prop MajorVersion)"
+          minor="$(prop MinorVersion)"
+          base="$(prop PatchBase)"; base="${base:-0}"
           test -n "$major" || { echo "MajorVersion not found in version.props" >&2; exit 1; }
+          test -n "$minor" || { echo "MinorVersion not found in version.props" >&2; exit 1; }
+          count="$(git rev-list --count HEAD)"
+          patch=$((count - base)); [ "$patch" -lt 0 ] && patch=0
           echo "major=$major" >> "$GITHUB_OUTPUT"
           echo "minor=$minor" >> "$GITHUB_OUTPUT"
-          echo "version=$major.$minor.0" >> "$GITHUB_OUTPUT"
-          echo "==> rasm $major.$minor.0  (major: version.props, minor: $minor)"
+          echo "patch=$patch" >> "$GITHUB_OUTPUT"
+          echo "version=$major.$minor.$patch" >> "$GITHUB_OUTPUT"
+          echo "==> rasm $major.$minor.$patch  (major/minor: version.props, patch: $patch = $count - $base)"
 
   test:
     name: test
@@ -73,7 +80,7 @@ jobs:
           - rid: osx-arm64
             os: macos-latest
     env:
-      MINOR: ${{ needs.version.outputs.minor }}
+      PATCH: ${{ needs.version.outputs.patch }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -99,7 +106,7 @@ jobs:
       - name: Build (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
-        run: ./build.ps1 -Rid ${{ matrix.rid }} -Minor ${{ needs.version.outputs.minor }}
+        run: ./build.ps1 -Rid ${{ matrix.rid }} -Patch ${{ needs.version.outputs.patch }}
 
       - uses: actions/upload-artifact@v4
         with:
@@ -142,5 +149,5 @@ jobs:
             gh release create "$TAG" dist/* \
               --target "$GITHUB_SHA" \
               --title "rasm $VERSION" \
-              --notes "Нативные сборки из \`${GITHUB_REF_NAME}\` (${GITHUB_SHA::7}). Major — из version.props, Minor — число коммитов в HEAD."
+              --notes "Нативные сборки из \`${GITHUB_REF_NAME}\` (${GITHUB_SHA::7}). Major и Minor — из version.props, Patch — число коммитов в HEAD минус PatchBase."
           fi

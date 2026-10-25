@@ -4,14 +4,14 @@
 
    .\build.ps1                    # RIDы текущей платформы (Windows: win-x64, win-arm64)
    .\build.ps1 -Rid win-x64       # только нужные RID
-   .\build.ps1 -Minor 42          # переопределить Minor (по умолчанию = число коммитов в HEAD)
+   .\build.ps1 -Patch 42          # переопределить Patch (по умолчанию = число коммитов минус PatchBase)
 
  Результат: artifacts/<rid>/rasm[.exe] и artifacts/rasm-<version>-<rid>.zip
- Major берётся из version.props, Minor/Patch — сюда или из CI.
+ Major и Minor берутся из version.props, Patch — отсюда или из CI.
 #>
 param(
     [string[]]$Rid,
-    [int]$Minor = -1,
+    [int]$Patch = -1,
     [string]$OutDir = 'artifacts',
     [switch]$NoZip
 )
@@ -27,17 +27,24 @@ if (-not $Rid -or $Rid.Count -eq 0) {
            else { @('linux-x64') }
 }
 
-$majorMatch = Select-String -Path (Join-Path $root 'version.props') -Pattern '<MajorVersion>(\d+)</MajorVersion>'
-if (-not $majorMatch) { throw "MajorVersion not found in version.props" }
-$major = [int]$majorMatch.Matches[0].Groups[1].Value
-
-if ($Minor -lt 0 -and $env:MINOR -match '^\d+$') { $Minor = [int]$env:MINOR }
-if ($Minor -lt 0) {
-    $count = (& git -C $root rev-list --count HEAD 2>$null)
-    if ($LASTEXITCODE -eq 0 -and $count -match '^\d+$') { $Minor = [int]$count } else { $Minor = 0 }
+$versionProps = Get-Content (Join-Path $root 'version.props') -Raw
+function Get-VersionProp([string]$name, [int]$fallback) {
+    $m = [regex]::Match($versionProps, "<$name>(\d+)</$name>")
+    if ($m.Success) { return [int]$m.Groups[1].Value }
+    return $fallback
 }
-$version = "$major.$Minor.0"
-Write-Host "rasm $version  (major: version.props, minor: $Minor)" -ForegroundColor Green
+$major = Get-VersionProp 'MajorVersion' 0
+$minor = Get-VersionProp 'MinorVersion' 0
+$base  = Get-VersionProp 'PatchBase' 0
+
+# Patch = число коммитов в HEAD минус PatchBase (0.9.<N> после релиза 0.9.0).
+if ($Patch -lt 0 -and $env:PATCH -match '^\d+$') { $Patch = [int]$env:PATCH }
+if ($Patch -lt 0) {
+    $count = (& git -C $root rev-list --count HEAD 2>$null)
+    if ($LASTEXITCODE -eq 0 -and $count -match '^\d+$') { $Patch = [Math]::Max(0, [int]$count - $base) } else { $Patch = 0 }
+}
+$version = "$major.$minor.$Patch"
+Write-Host "rasm $version  (major/minor: version.props, patch: $Patch)" -ForegroundColor Green
 
 foreach ($r in $Rid) {
     $out = Join-Path $outRoot $r
@@ -48,7 +55,7 @@ foreach ($r in $Rid) {
         # и objcopy из binutils-aarch64-linux-gnu вместо objcopy хоста.
         $aot = @('-p:LinkerFlavor=lld', '-p:ObjCopyName=aarch64-linux-gnu-objcopy')
     }
-    dotnet publish $project -c Release -r $r "-p:MajorVersion=$major" "-p:MinorVersion=$Minor" @aot --nologo -o $out
+    dotnet publish $project -c Release -r $r "-p:MajorVersion=$major" "-p:MinorVersion=$minor" "-p:PatchVersion=$Patch" @aot --nologo -o $out
     if ($LASTEXITCODE -ne 0) { throw "dotnet publish -r $r failed" }
 
     $exe = if ($r.StartsWith('win')) { 'rasm.exe' } else { 'rasm' }

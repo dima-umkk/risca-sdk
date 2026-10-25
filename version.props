@@ -1,15 +1,23 @@
 <Project>
 
   <!--
-    MAJOR версия rasm меняется ВРУЧНУЮ здесь:
-    при несовместимых изменениях ассемблируемого синтаксиса или формата .bin/.lst.
+    Версия rasm = MajorVersion.MinorVersion.PatchVersion.
 
-    MINOR инкрементируется автоматически: это число коммитов в ветке
+    MAJOR и MINOR задаются ВРУЧНУЮ здесь:
+      MAJOR — при несовместимых изменениях ассемблируемого синтаксиса или формата .bin/.lst;
+      MINOR — при обычном развитии (новая фича, доработка).
+
+    PATCH считается автоматически: это число коммитов в ветке минус PatchBase
     (см. build.ps1 / build.sh и .github/workflows/release.yml).
-    PATCH всегда 0, если не задан явно через -p:PatchVersion=N.
+
+    PatchBase — число коммитов в HEAD на момент выпуска Major.Minor.0. Меняй его
+    вместе с MINOR, чтобы PATCH снова начался с нуля: git rev-list count HEAD.
+    PatchBase = 0 означает «PATCH равен общему числу коммитов».
   -->
   <PropertyGroup>
-    <MajorVersion>1</MajorVersion>
+    <MajorVersion>0</MajorVersion>
+    <MinorVersion>9</MinorVersion>
+    <PatchBase>40</PatchBase>
   </PropertyGroup>
 
 </Project>
