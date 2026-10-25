@@ -90,8 +90,12 @@ namespace RiscA.Core.Asm
                         int refbytes = refline.Address - src[i].Address;
                         int refinstr = refbytes >> 1;
                         int refwords = (refline.Address >> 2) - (src[i].Address >> 2);
-                        int imm = pi.Instructions[0].OpCode == ISA.OpCode.CALL_JMP_RET ? refwords : refinstr;
-                        if (pi.Instructions[0].OpCode == ISA.OpCode.CALL_JMP_RET && (refline.Address & 0b0000_0011) != 0)
+                        //CALL steps in 4 byte words and needs a word aligned target (spec line 124),
+                        //JR steps in instructions (spec line 127), so only CALL uses the word offset
+                        bool jumpByWord = pi.Instructions[0].OpCode == ISA.OpCode.CALL_JMP_RET
+                            && (CallJmpRetFunc)pi.Instructions[0].Func2 == CallJmpRetFunc.CALL_IMM;
+                        int imm = jumpByWord ? refwords : refinstr;
+                        if (jumpByWord && (refline.Address & 0b0000_0011) != 0)
                         {
                             throw new Exception($"{src[i].Filename}: {refline.Pos + 1}: '{reflabel}' is not word aligned!");
                         }

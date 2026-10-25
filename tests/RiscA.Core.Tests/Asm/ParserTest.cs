@@ -30,7 +30,7 @@ namespace RiscA.Core.Tests.Asm
         }
 
         [Theory]
-        [InlineData("shl r1, 31",  new int[] { 0, 1, 31 })]
+        [InlineData("shl r1, 15",  new int[] { 0, 1, 15 })]
         [InlineData("shr r2, 2",   new int[] { 1, 2, 2 })]
         [InlineData("add r3, 127", new int[] { 2, 3, 127 })]
         [InlineData("sub r4, 3",   new int[] { 3, 4, 3 })]
@@ -45,7 +45,7 @@ namespace RiscA.Core.Tests.Asm
         }
 
         [Theory]
-        [InlineData("shl r1, 0x1F", new int[] { 0, 1, 31 })]
+        [InlineData("shl r1, 0x0F", new int[] { 0, 1, 15 })]
         [InlineData("shr r2, 0b10", new int[] { 1, 2, 2 })]
         [InlineData("add r3, 0x7F", new int[] { 2, 3, 127 })]
         [InlineData("sub r4, 0b11", new int[] { 3, 4, 3 })]
@@ -60,8 +60,9 @@ namespace RiscA.Core.Tests.Asm
         }
 
         [Theory]
-        [InlineData("shl r1, 33", "0 .. 32")]
-        [InlineData("shr r2, 222", "0 .. 32")]
+        [InlineData("shl r1, 16", "0 .. 15")]
+        [InlineData("shl r1, 33", "0 .. 15")]
+        [InlineData("shr r2, 222", "Shift must be in range 0 .. 15")]
         [InlineData("add r3, 128", "0 .. 127")]
         [InlineData("sub r4, 300", "0 .. 127")]
         public void ParserAluRegImmExceptionTest(string line, string exstr)
@@ -214,8 +215,8 @@ namespace RiscA.Core.Tests.Asm
         [InlineData("add r3, (-1)*(256/2)", "-128")]
         [InlineData("add r3, -(2)", "0 .. 127")]
         [InlineData("add r3, 70+60", "0 .. 127")]
-        [InlineData("shl r1, 20+20", "0 .. 32")]
-        [InlineData("shr r1, 100-50", "0 .. 32")]
+        [InlineData("shl r1, 20+20", "0 .. 15")]
+        [InlineData("shr r1, 100-50", "0 .. 15")]
         [InlineData("ldi r5, [-200-200-200]", "-256 .. 255")]
         public void ParseExpressionExceptionTest(string line, string exstr)
         {

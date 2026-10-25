@@ -64,6 +64,34 @@ public class EncodingTests
     }
 
     [Theory]
+    [InlineData(0x200, 1, 0x204)]
+    [InlineData(0x200, -1, 0x1FC)]
+    [InlineData(0x202, 1, 0x204)]
+    public void CALL_target_is_the_enclosing_word_plus_imm_times_4(int address, int imm, int expected)
+    {
+        var inst = new Instruction(0)
+            .withOpCode(OpCode.CALL_JMP_RET)
+            .withFunc2((int)CallJmpRetFunc.CALL_IMM)
+            .SetImm(imm);
+
+        inst.CalcRef(address).Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData(0x200, 1, 0x202)]
+    [InlineData(0x200, -1, 0x1FE)]
+    [InlineData(0x200, 6, 0x20C)]
+    public void JR_target_is_the_address_plus_imm_times_2(int address, int imm, int expected)
+    {
+        var inst = new Instruction(0)
+            .withOpCode(OpCode.CALL_JMP_RET)
+            .withFunc2((int)CallJmpRetFunc.JR)
+            .SetImm(imm);
+
+        inst.CalcRef(address).Should().Be(expected);
+    }
+
+    [Theory]
     [InlineData(0, 4, 0x208)]
     [InlineData(0, -2, 0x1FC)]
     [InlineData(15, -128, 0x100)]
@@ -106,5 +134,53 @@ public class EncodingTests
 
         act.Should().Throw<ArgumentOutOfRangeException>()
             .WithMessage("*-128 .. 127*");
+    }
+
+    // ALU Imm shifts take their amount from Imm(4) only (doc/RiscA.MD lines 59-60), so a larger
+    // number would be encoded in Imm(7) and then silently executed as (Imm & 0xF) by the hardware.
+    [Theory]
+    [InlineData(0)]
+    [InlineData(4)]
+    [InlineData(15)]
+    public void ALU_imm_shift_accepts_4bit_amounts(int imm)
+    {
+        var inst = new Instruction(0)
+            .withOpCode(OpCode.ALU_REG_IMM)
+            .withFunc2((int)ALUImmFunc.SHR);
+
+        Action act = () => inst.CheckImmLimits(imm);
+
+        act.Should().NotThrow();
+        inst.SetImm(imm).Imm7.Should().Be(imm);
+    }
+
+    [Theory]
+    [InlineData(16)]
+    [InlineData(31)]
+    [InlineData(127)]
+    public void ALU_imm_shift_rejects_amounts_above_4_bits(int imm)
+    {
+        var inst = new Instruction(0)
+            .withOpCode(OpCode.ALU_REG_IMM)
+            .withFunc2((int)ALUImmFunc.SHL);
+
+        Action act = () => inst.CheckImmLimits(imm);
+
+        act.Should().Throw<ArgumentOutOfRangeException>()
+            .WithMessage("*Shift must be in range 0 .. 15*");
+    }
+
+    [Theory]
+    [InlineData(16)]
+    [InlineData(127)]
+    public void ALU_imm_add_and_sub_keep_the_full_7bit_range(int imm)
+    {
+        var inst = new Instruction(0)
+            .withOpCode(OpCode.ALU_REG_IMM)
+            .withFunc2((int)ALUImmFunc.ADD);
+
+        Action act = () => inst.CheckImmLimits(imm);
+
+        act.Should().NotThrow();
     }
 }

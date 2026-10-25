@@ -129,7 +129,9 @@ namespace RiscA.Core.ISA
 
             var (min, max, name) = OpCode switch
             {
-                OpCode.ALU_REG_IMM when (ALUImmFunc)Func2 is ALUImmFunc.SHL or ALUImmFunc.SHR => (0, 32, "Immediate"),
+                //the spec takes the shift amount from Imm(4) only, so a larger value would silently
+                //behave as (Imm & 0xF) on the hardware - reject it in the assembler instead
+                OpCode.ALU_REG_IMM when (ALUImmFunc)Func2 is ALUImmFunc.SHL or ALUImmFunc.SHR => (0, 15, "Shift"),
                 OpCode.ALU_REG_IMM => (0, 127, "Immediate"),
                 OpCode.REG_IMM => (0, 255, "Immediate"),
                 OpCode.ST_LD => (0, 7, "Offset"),
@@ -168,7 +170,10 @@ namespace RiscA.Core.ISA
                 OpCode.LDI => address + Imm9*2,
                 OpCode.CALL_JMP_RET => (CallJmpRetFunc)Func2 switch
                 {
-                    CallJmpRetFunc.CALL_IMM or CallJmpRetFunc.JR => ((address>>2)<<2) + ImmCallJr*4,
+                    //CALL steps in 4 byte words (functions are aligned by 4 bytes, spec line 124),
+                    //JR steps in instructions (spec line 127: PC = PC + signed(...) << 1)
+                    CallJmpRetFunc.CALL_IMM => ((address>>2)<<2) + ImmCallJr*4,
+                    CallJmpRetFunc.JR => address + ImmCallJr*2,
                     _ => address,
                 },
                 _ => address,
