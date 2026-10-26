@@ -39,10 +39,13 @@
   (`gh release create --notes-file` / `gh release edit` on a rerun) — release notes are generated, never hand-written.
 - No lint/formatter config.
 - All projects: `<ImplicitUsings>enable</ImplicitUsings>`, `<Nullable>enable</Nullable>`.
-- **ISA docs:** `doc/RiscA.MD` (spec) and `doc/README.md` (encoding reference with examples & limits).
-  `doc/RiscA.MD` is a copy of the spec from the RTL repo `dima-umkk/risca`, with our own fixes applied
-  (stale instruction lists, `func1` label, branch range, typos). When syncing it with upstream, re-apply those fixes;
-  never edit the upstream repo from this SDK.
+- **ISA docs:** `doc/RiscA.MD` is the spec and authority (a copy of the spec from the RTL repo
+  `dima-umkk/risca`, with our own fixes applied — stale instruction lists, `func1` label, branch
+  range, typos; when syncing with upstream, re-apply those fixes, never edit the upstream repo
+  from this SDK). `doc/instruction-set.md` is the detailed encoding reference (bit layouts,
+  examples, limits) with the ABI section. `doc/README.md` is a slim navigator: a map of the
+  architecture docs plus a one-screen cheat sheet (opcode table, ABI, assembler directives,
+  quick start).
 - **`Instruction` struct** in `ISA/Instruction.cs` — immutable `readonly struct` with `(mask, shift)` tuple fields and `with*()` builder methods.
 - **Assembler CLI** (`src/RiscA.Assembler/Program.cs`): `rasm -i <file.rasm>` plus optional `-v` (verbose), `-vp` (parser match debug), `-vi` (instruction dump). Sample: `samples/base.test.rasm`.
 - **Assembler directives** (`src/RiscA.Core/Asm/Preprocessor.cs`, runs before the two assembler passes):
@@ -52,7 +55,16 @@
   pass over the spliced lines, so a library included at the end of a file still provides its constants to the
   code above it (the image starts with the program body, so libraries go last — see `samples/uart.echo.rasm` and
   `samples/lib/uart.rasm`). Directive names are matched at string level, because the tokenizer cannot read `.name`.
-  Directive syntax and caveats are documented in `doc/README.md` ("Assembler directives").
+  Directive syntax and caveats are documented in `doc/README.md` ("Директивы ассемблера").
+- **Assembler design record:** `doc/assembler-architecture.md` — the assembler pipeline
+  (Preprocessor → Parser rule engine → addressing + a label-resolution/relaxation loop to a
+  fixed point) and the implemented milestone **A1**: pseudo-ops `li/la/j` expanded by parser
+  rules (`mv` deliberately not added — `MOV` is a real instruction), a `List<Fixup { Slot; Label; FixupKind }>` (Branch/Call/Jr/PoolRef/DataAddr; mutable class, also `Target` = pool slot, `Reg` for `j rN`) on `ParsedInstruction` replacing `RefLabel`, per-function constant pools (`dw label ;pool`, marked `IsPool`, keyed by region+label), and the relaxation loop (invert-and-JR
+  for far branches, `la r7`+`CALL r7` for far calls; for an unreachable pool slot `la` expands
+  to an inline mini-pool — `ldi` + `jr` over the data + `dw label` — so every absolute address
+  stays in a `dw` entry, which later doubles as the relocation table for load-at-any-address).
+  Acceptance: all tests green, `samples/` images byte-identical to pre-A1, far jumps/calls
+  assemble and execute in the emulator (`RunTest` assembles with `origin` = load address).
 - **Machine design record:** `doc/emulator-architecture.md` — the agreed architecture of the emulator,
   debugger and compiler (one flat address space — every address reachable both from the fetch
   path and from `LDB/LDW/STB/STW`, a single load image, memory map with device blocks of 256 bytes at low
@@ -61,6 +73,15 @@
   `rsim` CLI (M1: `run` and `disasm` work) in `src/RiscA.Rsim`; the debugger and the
   compiler are not implemented yet. The spec `doc/RiscA.MD` is the authority, `artifacts/rtl/`
   is a read-only upstream reference and must not be edited.
+- **Compiler design record:** `doc/compiler-architecture.md` — the agreed architecture of the
+  C compiler (milestone M3): reuse a C frontend via QBE IL (textual SSA-like IR) + our own
+  RiscA back-end `rcc` in C# emitting one `.rasm` (no object files/linker); prerequisite
+  milestone A1 in the assembler: pseudo-ops `li/la/j`, a fixup list on `ParsedInstruction`,
+  per-function constant pools and an iterative branch/CALL relaxation loop; QBE 1.3 and cproc
+  both build in WSL (cproc: author's mirror `github.com/michaelforney/cproc`, download tarballs
+  with Windows curl — github is unreachable from WSL; the `michg/cproc` fork's `rv32` target
+  emits the pure-`w` ILP32 IL our back-end consumes; `-d A` and bundled `minic` show the IL).
+  The debugger and the compiler are not implemented yet.
 - **Emulator core** (`src/RiscA.Machine`, namespace `RiscA.Machine`, block-style namespaces):
   one flat `AddressSpace` — `RamRegion` (byte array, little-endian, unaligned words allowed) plus
   `DeviceRegion` wrappers around `IDevice` at `addr[31:16] == 0`, device blocks of 256 bytes

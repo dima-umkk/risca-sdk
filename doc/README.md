@@ -1,384 +1,100 @@
-# Risc-A Instruction Set Architecture
+# RiscA SDK — навигатор по документации
 
-16-bit fixed-length instructions, 32-bit data bus (two instructions per word), little-endian byte order.
+RiscA — своя 16-битная ISA (инструкции фиксированные, 32-битные данные, 16 регистров,
+little-endian). Этот репозиторий — SDK: ассемблер `rasm`, эмулятор `rsim`, и в планах
+компилятор C и отладчик. Документация разделена по архитектуре компонентов; этот файл —
+навигатор плюс шпаргалка, которая закрывает повседневные нужды.
 
-## Registers
+## Карта документов
 
-16 general-purpose registers R0–R15 (32-bit each).
+| Документ | О чём |
+|---|---|
+| [`RiscA.MD`](RiscA.MD) | **Спецификация ISA — источник истины.** Копия спеки из RTL-репозитория `dima-umkk/risca` с применёнными фиксами SDK |
+| [`instruction-set.md`](instruction-set.md) | Подробный справочник кодировок: битовые поля, таблицы, примеры, ограничения по каждой инструкции |
+| [`assembler-architecture.md`](assembler-architecture.md) | Архитектура `rasm`: конвейер, структуры данных, план и реализация вехи **A1** (`li/la/j`, фиксипы, пулы констант, релаксация переходов) |
+| [`emulator-architecture.md`](emulator-architecture.md) | Эмулятор: карта памяти, UART0, формат карты символов, вехи M0–M4 |
+| [`compiler-architecture.md`](compiler-architecture.md) | Компилятор C (веха M3): фронтенд cproc → QBE IL → собственный бэкенд `rcc` → один `.rasm`; runtime, libc, золотые тесты |
+| [`../AGENTS.md`](../AGENTS.md) | Карта проектов, сборка/тесты, конвенции для агентов и разработчиков |
 
-## Instruction encoding overview
+## ISA в одну таблицу
 
-| Opcode | Type | Format | Operations |
-|--------|------|--------|------------|
-| 0 | ALU REG REG | `unused(1) \| func4(4) \| Rs(4) \| Rd(4) \| opcode(3)` | MOV, ADD, SUB, AND, OR, XOR, NOT, MUL, SLT, SLTU |
-| 1 | ALU Imm | `Imm(7) \| func2(2) \| Rd(4) \| opcode(3)` | SHL, SHR, ADD, SUB |
-| 2 | REG Imm | `Imm(8) \| func1(1) \| Rd(4) \| opcode(3)` | MOVI, MOVL |
-| 3 | ST/LD | `Imm(3) \| func22(1) \| func21(1) \| Rs(4) \| Rd(4) \| opcode(3)` | LDB, LDW, STB, STW |
-| 4 | BRANCH | `Imm(8) \| func1(1) \| Rd(4) \| opcode(3)` | BEQZ, BNEZ |
-| 5 | LDI | `Imm(9) \| Rd(4) \| opcode(3)` | Load PC-relative 32-bit constant |
-| 6 | CALL/JMP/RET | `Imm(7) \| func2(2) \| Rd(4) \| opcode(3)` | CALL, JMP, RET, JR |
-| 7 | INT/RETI/STS | `unused(7) \| func2(2) \| Rd(4) \| opcode(3)` | INT, RETI, MOV EPC, MOV STS |
+| ОPCODE | Тип | Инструкции | Дальность/диапазон |
+|---|---|---|---|
+| 0 | ALU reg,reg | `MOV ADD SUB AND OR XOR NOT MUL SLT SLTU` | — |
+| 1 | ALU reg,imm | `SHL SHR` (0..15) `ADD SUB` (0..127) | — |
+| 2 | reg,imm | `MOVI` (=imm), `MOVL` (`Rd=(Rd<<8)\|imm`) | imm 0..255; цепочка 1–4 даёт 32 бита |
+| 3 | LD/ST | `LDB LDW STB STW [Rs + 0..7]` | слово: шаг 4, т.е. смещения 0..28; байт: 0..7 |
+| 4 | BRANCH | `BEQZ BNEZ Rd, imm` | ±128 инструкций от PC |
+| 5 | LDI | `LDI Rd, [imm]` — 32-битное значение из пула | ±256 инструкций от PC |
+| 6 | CALL/JMP | `CALL imm` (шаг **слова**, цель 4-выровнена, ±1024 слова), `JR imm` (шаг инструкции, ±1024), `CALL Rd`, `RET` (=`JMP R14`), `JMP Rd` | — |
+| 7 | INT/STS | `INT Rd`, `RETI`, `MOV Rd,EPC`, `MOV EPC,Rd` | — |
 
----
+Ключевые следствия: **нет флагов** (сравнения `SLT/SLTU` пишут 0/1 в регистр), **нет
+деления**, **нет сдвига по регистру**, `NOP` = `MOV R0,R0` = `0x0000`. Полные кодировки —
+[`instruction-set.md`](instruction-set.md).
 
-## ALU REG REG — Opcode 0
+### ABI
 
-`unused(1) | func4(4) | Rs(4) | Rd(4) | 000`
+| Роль | Регистр |
+|---|---|
+| Аргументы | R0–R5 |
+| Результат | R0 |
+| Адрес возврата | R14 (ставит `CALL`, callee сохраняет при вложенных вызовах) |
+| Стек | R15 (растёт вниз: `SUB R15,4` + `STW [R15+0],Rd`) |
+| Callee-saved | R8–R13 |
+| Свободный scratch | R6, R7 |
 
-```
-bit  15:    unused (must be 0)
-bits 14–11: func4  — selects operation
-bits 10–7:  Rs     — source register
-bits 6–3:   Rd     — destination register
-bits 2–0:   000    — opcode
-```
+## Директивы ассемблера
 
-| func4 | Mnemonic | Semantics |
-|-------|----------|-----------|
-| 0000 | MOV Rd, Rs | Rd = Rs |
-| 0001 | ADD Rd, Rs | Rd = Rd + Rs |
-| 0010 | SUB Rd, Rs | Rd = Rd − Rs |
-| 0011 | AND Rd, Rs | Rd = Rd & Rs |
-| 0100 | OR Rd, Rs | Rd = Rd \| Rs |
-| 0101 | XOR Rd, Rs | Rd = Rd ^ Rs |
-| 0110 | NOT Rd, Rs | Rd = ~Rs |
-| 0111 | MUL Rd, Rs | Rd = Rd × Rs |
-| 1000 | SLT Rd, Rs | Rd = (Rd < Rs) ? 1 : 0, signed comparison |
-| 1001 | SLTU Rd, Rs | Rd = (Rd < Rs) ? 1 : 0, unsigned comparison |
-| 1010–1111 | — | unused, reserved for future operations |
+| Директива | Значение |
+|---|---|
+| `.func name:` | вход функции; при необходимости вставляется `NOP` для 4-байтного выравнивания (требование `CALL`) |
+| `.equ NAME, value` | целая константа (dec / `0x` / `0b`); подставляется везде, где ожидается число (imm, `[r+NAME]`, `db`/`dw`) |
+| `.include "file"` | вклейка файла (один раз на сборку, поиск: каталог включаемого → каталог корня → cwd) |
+| `db v1, v2, 'строка'` | байты; строки — только в **одинарных** кавычках |
+| `dw v` / `dw label` | 32-битное слово (little-endian) или абсолютный адрес метки |
+| `li Rd, c` / `la Rd, label` / `j label` | псевдокоманды (не директивы): см. «Псевдокоманды» ниже |
 
-**Limitations**
-- Rd, Rs: 0–15 (4-bit register index).
-- `MOV R0, R0` encodes as `0x0000` and is the canonical NOP.
-- Unused bit 15 must be zero for forward compatibility.
+Важные нюансы: константы `.equ` собираются после всех включений — библиотека может стоять
+**в конце** файла и снабжать константами код выше (см. `samples/uart.echo.rasm` +
+`samples/lib/uart.rasm`); имя константы не может быть мнемоникой/регистром/меткой; строки в
+коде в одинарных кавычках, двойные — только в `.include`; символа `'A'` нет — пишите `65`.
+Метка ≠ константа: метка становится известна после адресации, `dw label` — можно,
+`dw label+4` — пока нельзя. Образ стартует с адреса, который задан ассемблеру
+(в CLI по умолчанию 0), а эмулятор грузит его в `0x0001_0000`: переходы относительные, но
+абсолютные адреса из `la`/`dw label` при этом расходятся с адресом загрузки — общий
+адрес сборки/загрузки и таблицу перемещений закроет план из `assembler-architecture.md`, раздел 7.
 
-**Example**
+## Псевдокоманды
 
-| Assembly | Encoding |
-|----------|----------|
-| `MOV R1, R2` | `0x0108` |
-| `ADD R3, R4` | `0x0A18` |
-| `SUB R0, R0` | `0x1000` |
-| `SLT R1, R2` | `0x4108` |
-| `SLTU R3, R4` | `0x4A18` |
+`li / la / j` — **реализованы** (веха A1): как они устроены и как работает релаксация
+«далёких» переходов — в [`assembler-architecture.md`](assembler-architecture.md), разделы 6.1
+и 6.4.
 
----
+- `li Rd, c` — цепочка `MOVI`/`MOVL` по ненулевым байтам константы (0..4 инструкции);
+  `la Rd, <число>` — синоним `li`.
+- `la Rd, label` — `ldi Rd, ±256` на слот пула констант; свой пул (`dw label`) у каждой
+  `.func`-области (или у всего файла без `.func`). Если слот вне досягаемости `ldi`, строка
+  разрастается в мини-пул на месте: `ldi Rd, +2; jr +3; dw label`.
+- `j label [, rN]` — `JR` к метке; при недостижимости — `la rN` + `JMP rN` (по умолчанию `r7`).
+  «Далёкие» `beqz/bnez`, `call`, `jr` тоже расширяются сами (раздел 6.4); код при этом
+  растёт, а не переписывается обратно.
 
-## ALU Imm — Opcode 1
+Алиаса `mv` нет: в RiscA `mov` — настоящая инструкция, он и так есть везде, где нужен.
+Каждый абсолютный адрес образа лежит в записи `dw` — этот набор позже станет таблицей
+перемещений для загрузки программы по любому адресу.
 
-`Imm(7) | func2(2) | Rd(4) | 001`
+## Быстрый старт
 
-```
-bits 15–9: Imm(7) — immediate value
-bits 8–7:  func2  — selects operation
-bits 6–3:  Rd     — destination register
-bits 2–0:  001    — opcode
-```
-
-| func2 | Mnemonic | Semantics |
-|-------|----------|-----------|
-| 00 | SHL Rd, Imm(4) | Rd = Rd << (Imm & 0xF) |
-| 01 | SHR Rd, Imm(4) | Rd = Rd >> (Imm & 0xF), logical (zero-fill) |
-| 10 | ADD Rd, Imm(7) | Rd = Rd + Imm |
-| 11 | SUB Rd, Imm(7) | Rd = Rd − Imm |
-
-**Limitations**
-- Rd: 0–15.
-- SHL/SHR: only the lower 4 bits of Imm are used as the shift amount, so the shift is **0–15** and
-  the assembler rejects anything larger (`shl r1, 16` is an error, not a silent `<<0`). A shift of
-  28 must be written as a sequence, for example `SHR R5, 12` / `SHR R5, 12` / `SHR R5, 4`.
-- ADD/SUB: Imm is a 7-bit unsigned value in range 0–127.
-- SHR is a logical shift (zero-filled on the left).
-
-**Example**
-
-| Assembly | Encoding |
-|----------|----------|
-| `SHL R1, 4` | `0x0809` |
-| `ADD R0, 127` | `0xFF01` |
-| `SUB R2, 1` | `0x0391` |
-
----
-
-## REG Imm — Opcode 2
-
-`Imm(8) | func1(1) | Rd(4) | 010`
-
-```
-bits 15–8: Imm(8) — immediate value
-bit  7:    func1  — selects operation
-bits 6–3:  Rd     — destination register
-bits 2–0:  010    — opcode
+```powershell
+dotnet build                                  # .NET 10
+dotnet test                                   # xunit + FluentAssertions
+# сборка и запуск примера:
+artifacts\win-x64\rasm -i samples\uart.echo.rasm -o uart.echo.bin -l uart.echo.lst -vi
+artifacts\win-x64\rsim run uart.echo.bin
 ```
 
-| func1 | Mnemonic | Semantics |
-|-------|----------|-----------|
-| 0 | MOVI Rd, Imm | Rd = Imm (zero-extended) |
-| 1 | MOVL Rd, Imm | Rd = (Rd << 8) \| Imm |
-
-**Limitations**
-- Rd: 0–15.
-- Imm: 8-bit unsigned value (0–255).
-- `MOVI` alone covers 0–255. Add `MOVL` to extend to 16, 24, or 32 bits.
-  A full 32-bit load: `MOVI Rd, b3` → `MOVL Rd, b2` → `MOVL Rd, b1` → `MOVL Rd, b0`.
-
-**Example**
-
-| Assembly | Encoding |
-|----------|----------|
-| `MOVI R0, 0xFF` | `0xFF02` |
-| `MOVL R0, 0xAA` | `0xAA82` |
-
-Loading 0x12345678 into R1:
-
-```
-MOVI R1, 0x12     ; R1 = 0x00000012
-MOVL R1, 0x34     ; R1 = 0x00001234
-MOVL R1, 0x56     ; R1 = 0x00123456
-MOVL R1, 0x78     ; R1 = 0x12345678
-```
-
----
-
-## ST/LD — Opcode 3
-
-`Imm(3) | func22(1) | func21(1) | Rs(4) | Rd(4) | 011`
-
-```
-bits 15–13: Imm(3) — unsigned offset
-bit  12:    func22 — size: 0 = byte, 1 = word
-bit  11:    func21 — direction: 0 = load, 1 = store
-bits 10–7:  Rs     — base address register
-bits 6–3:   Rd     — data register (load destination / store source)
-bits 2–0:   011    — opcode
-```
-
-| func21 | func22 | Mnemonic | Semantics |
-|--------|--------|----------|-----------|
-| 0 | 0 | LDB Rd, [Rs + Imm(3)] | Rd = byte at [Rs + offset] (zero-extended) |
-| 0 | 1 | LDW Rd, [Rs + Imm(3)<<2] | Rd = word at [Rs + offset × 4] |
-| 1 | 0 | STB [Rs + Imm(3)], Rd | byte at [Rs + offset] = Rd (low byte) |
-| 1 | 1 | STW [Rs + Imm(3)<<2], Rd | word at [Rs + offset × 4] = Rd |
-
-**Limitations**
-- Rd, Rs: 0–15.
-- Imm(3): 3-bit unsigned offset, written in the assembly as `0–7`.
-- Byte access: the offset is a byte offset, so the range is 0–7 bytes.
-- Word access: the hardware scales the offset by 4 (Imm(3) << 2), so `0–7` in the source means byte offsets 0, 4, 8, …, 28 (step 4).
-
-**Example**
-
-| Assembly | Encoding |
-|----------|----------|
-| `LDW R1, [R2 + 0]` | `0x110B` |
-| `STW [R5 + 2], R4` | `0x5AA3` |
-| `LDB R0, [R1 + 3]` | `0x6083` |
-
----
-
-## BRANCH — Opcode 4
-
-`Imm(8) | func1(1) | Rd(4) | 100`
-
-```
-bits 15–8: Imm(8) — signed offset
-bit  7:    func1  — branch condition
-bits 6–3:  Rd     — compared register
-bits 2–0:  100    — opcode
-```
-
-| func1 | Mnemonic | Condition |
-|-------|----------|-----------|
-| 0 | BEQZ Rd, Imm | Rd == 0 |
-| 1 | BNEZ Rd, Imm | Rd != 0 |
-
-**Limitations**
-- Rd: 0–15.
-- Imm(8): 8-bit signed value in instruction units (−128 … +127).
-- PC-relative offset (bytes) = sign-extended Imm × 2.
-- Branch range: −128 … +127 instructions from PC (−256 … +254 bytes).
-- A label reference must resolve inside that range; the assembler reports the offset as out of range otherwise.
-
-**Example**
-
-| Assembly | Encoding |
-|----------|----------|
-| `BEQZ R0, 4` | `0x0404` |
-| `BNEZ R1, −2` | `0xFE8C` |
-| `BEQZ R15, 127` | `0x7F7C` |
-| `BNEZ R0, −128` | `0x8084` |
-
----
-
-## LDI — Opcode 5
-
-`Imm(9) | Rd(4) | 101`
-
-```
-bits 15–7: Imm(9) — signed offset
-bits 6–3:  Rd     — destination register
-bits 2–0:  101    — opcode
-```
-
-**Semantics**
-
-`LDI Rd, [offset]` loads a 32-bit value stored at `PC + sign_ext(Imm) × 2` into Rd. The constant pool is typically placed at function boundaries.
-
-**Limitations**
-- Rd: 0–15.
-- Imm(9): 9-bit signed value in instruction units (−256 … +255).
-- PC-relative offset (bytes) = sign-extended Imm × 2.
-- Load range: −256 … +255 instructions from PC.
-- Constants must be 2-byte aligned within the instruction stream.
-
-**Example**
-
-| Assembly | Encoding |
-|----------|----------|
-| `LDI R0, [8]` | `0x0405` |
-| `LDI R1, [−4]` | `0xFE0D` |
-
----
-
-## CALL / JMP / RET — Opcode 6
-
-`Imm(7) | func2(2) | Rd(4) | 110`
-
-```
-bits 15–9: Imm(7) — offset (upper 7 bits of 11-bit target)
-bits 8–7:  func2  — operation
-bits 6–3:  Rd     — lower 4 bits of target (CALL IMM / JR) or target register
-bits 2–0:  110    — opcode
-```
-
-| func2 | Mnemonic | Semantics |
-|-------|----------|-----------|
-| 00 | CALL Imm | `R14 = PC + 2`; `PC += sign_ext(Imm[7]\|Rd[4]) × 4` |
-| 01 | CALL Rd | `R14 = PC + 2`; `PC = Rd` |
-| 10 | RET Rd | `PC = Rd` (aliased JMP Rd; default link register is R14) |
-| 11 | JR Imm | `PC += sign_ext(Imm[7]\|Rd[4]) × 2` |
-
-**Limitations**
-- Rd: 0–15.
-- CALL IMM / JR: target is Imm(7) concatenated with Rd(4) = 11-bit signed value in instruction units (−1024 … +1023).
-- CALL IMM: offset × 4 bytes; range −4096 … +4092 bytes. Target must be 4-byte aligned.
-- JR: offset × 2 bytes; range −1024 … +1023 instructions from PC.
-- CALL Rd / RET: any register value — no range limit.
-
-**Example**
-
-| Assembly | Encoding |
-|----------|----------|
-| `CALL 16` | `0x0206` |
-| `CALL R14` | `0x00F6` |
-| `RET` | `0x0176` |
-| `JR 4` | `0x01A6` |
-
----
-
-## INT / RETI / STS — Opcode 7
-
-`unused(7) | func2(2) | Rd(4) | 111`
-
-```
-bits 15–9: unused (must be 0)
-bits 8–7:  func2  — operation
-bits 6–3:  Rd     — interrupt number or source/target register for EPC/STS
-bits 2–0:  111    — opcode
-```
-
-| func2 | Mnemonic | Semantics |
-|-------|----------|-----------|
-| 00 | INT Rd | Trigger software interrupt; Rd selects interrupt number (0–15) |
-| 01 | RETI | Return from interrupt |
-| 10 | MOV Rd, EPC | Rd = EPC (read EPC) |
-| 11 | MOV EPC, Rd | EPC = Rd (write EPC) |
-
-**Limitations**
-- Rd: 0–15.
-- Upper 7 bits unused (must be zero).
-- EPC: captures `PC + 2` on interrupt entry.
-
-**Interrupt vectors**
-
-| Address | Source |
-|---------|--------|
-| 0x00000000 | Reset |
-| 0x00000002 | Timer |
-| 0x00000004 | Syscall (INT Rd) |
-| 0x00000006 | … |
-
-**System status (STS) register**
-
-- Bit 0: IE (interrupt enable).
-- Bit 1: Priv (1 = kernel mode, 0 = user mode).
-
----
-
-## Assembler directives
-
-Besides instructions, `rasm` understands these lines. A directive line itself emits no code;
-`.func` may insert one `NOP` to keep the function address word aligned.
-
-| Directive | Meaning |
-|-----------|---------|
-| `.func name:` | Function entry. A `NOP` is inserted when needed so that the address is a multiple of 4 bytes, which `CALL` requires. |
-| `.equ NAME, value` | Defines an integer constant (decimal, `0x` hex or `0b` binary). The name can be used anywhere a number is expected, including `[r7+NAME]` offsets and `db`/`dw` values. |
-| `.include "file"` | Splices another source file into this one. The path is resolved relative to the including file first, then relative to the root source file, then relative to the working directory. Every file is spliced in once per compilation, include cycles are ignored instead of followed. |
-| `db value` / `db 'text'` | Emits one byte per value, or one byte per character of a string. |
-| `dw value` / `dw label` | Emits one 32-bit word per value, or the address of a label. |
-
-Notes:
-
-- `.equ` constants are collected before the assembler walks the code, so a library that is included
-  at the end of the file still provides its constants to the code above the `.include`.
-- A constant is not a label: its value must be a single number, it is substituted before addresses
-  are known, and it cannot be used as a branch or call target.
-- The image starts with the program body, so an included library belongs after the program — write
-  `.include "lib/uart.rasm"` at the end of the main file.
-- A name that is an instruction mnemonic or a register name cannot be a constant, a constant cannot
-  be defined twice, and a constant name cannot be used as a label; all of these are reported as errors.
-- Immediate range checks still apply after substitution: `.equ BIG, 300` used with `MOVI` is rejected
-  the same way `MOVI R1, 300` is.
-- String literals inside code use **single** quotes (`db 'text'`). The tokenizer has no double quoted
-  strings and no character constants, so `db "text"` is a syntax error and `MOVI R1, 'A'` does not
-  work either — write `MOVI R1, 65`. Double quotes appear only in `.include "file"`, which the
-  preprocessor reads as plain text before the tokenizer runs.
-- `db` and `dw` follow the little-endian byte order of the ISA (`doc/RiscA.MD` line 4): `db 'AB', 0x43`
-  emits bytes `41 42 43 00`, and `dw 0x0BADF00D` emits `0D F0 AD 0B` (the low halfword first), so
-  `LDW`/`LDI` read the value back unchanged.
-- The emulator starts a program at the start of the RAM and not at address 0, because the low 64 KiB
-  of the flat map belong to the devices (`doc/emulator-architecture.md`, §4). The assembler still puts
-  the image at 0 until `-a <addr>` exists; branch, `LDI` and `JR` offsets are relative to the
-  instruction itself, and `CALL` offsets are relative to its word, so a program assembled at 0 runs at
-  any origin that keeps the same alignment.
-
-## ABI
-
-| Role | Register |
-|------|----------|
-| Arguments | R0–R5 |
-| Return value | R0 |
-| Link register | R14 (callee must save if re-entrant) |
-| Stack pointer | R15 |
-| Callee-saved | R8–R13 (must be preserved) |
-
-**Stack push / pop**
-
-```
-; PUSH Rd
-SUB  R15, 4
-STW  [R15 + 0], Rd
-
-; POP Rd
-LDW  Rd, [R15 + 0]
-ADD  R15, 4
-```
-
-**Syscall convention**
-
-`INT R0` invokes a system function. R1–R5 carry arguments, result returned in R0.
-
-**Constant pools**
-
-Constants are placed after the final `RET` of a function, or before the function body preceded by a `JR` skip. The constant pool must be reachable via LDI's 9-bit signed offset.
+Альтернатива без публикации: `dotnet run --project src/RiscA.Assembler -- -i samples/base.test.rasm`.
+Флаги: `rasm -i <файл> [-o bin] [-l листинг] [-vp] [-vi] [-V]`;
+`rsim run <bin> [--stdin файл] [--trace файл] [--limit N] ...` — коды выхода `rsim` описаны
+в [`../AGENTS.md`](../AGENTS.md) и `emulator-architecture.md`.

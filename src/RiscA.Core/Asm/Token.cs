@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -49,6 +49,10 @@ namespace RiscA.Core.Asm
         RET,
         JMP,
         JR,
+        //pseudo ops expanded by the parser (doc/assembler-architecture.md, 6.1)
+        LI,
+        LA,
+        J,
         INT,
         RETI,
         EPC,
@@ -112,6 +116,10 @@ namespace RiscA.Core.Asm
             {"ret", TK.RET },
             {"jmp", TK.JMP },
             {"jr", TK.JR },
+
+            {"li", TK.LI },
+            {"la", TK.LA },
+            {"j", TK.J },
 
             {"int", TK.INT },
             {"reti", TK.RETI },
