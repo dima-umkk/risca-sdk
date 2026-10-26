@@ -131,8 +131,10 @@ internal static class Harness
         return cpu;
     }
 
-    //assemble a program with the real assembler and return the flat image, like `rasm -o prog.bin` does
-    public static byte[] Assemble(string source)
+    //assemble a program with the real assembler and return the flat image, like `rasm -o prog.bin` does;
+    //origin is the address the program is assembled for, so the absolute addresses in 'la' pools and
+    //'dw label' entries match the address the image is later loaded at
+    public static byte[] Assemble(string source, int origin = 0)
     {
         var dir = Path.Combine(Path.GetTempPath(), "risca-machine-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
@@ -140,7 +142,7 @@ internal static class Harness
         {
             var file = Path.Combine(dir, "prog.rasm");
             File.WriteAllText(file, source);
-            return AssembleFile(file);
+            return AssembleFile(file, origin);
         }
         finally
         {
@@ -156,18 +158,18 @@ internal static class Harness
     }
 
     //a whole program assembled from source and loaded at the reset vector, the start of the ram
-    public static Machine Program(string source, int ramSize = 4096)
+    public static Machine Program(string source, int ramSize = 4096, int origin = 0)
     {
         var cpu = new Machine(Space(ramSize));
-        ProgramImage.Load(cpu.Space, cpu.PC, Assemble(source));
+        ProgramImage.Load(cpu.Space, cpu.PC, Assemble(source, origin));
         return cpu;
     }
 
     //the same as Assemble(), but for a file that already exists, so the repository samples go
     //through the assembler with their .include paths intact
-    public static byte[] AssembleFile(string path)
+    public static byte[] AssembleFile(string path, int origin = 0)
     {
-        var asm = new Assembler(0);
+        var asm = new Assembler(origin);
         asm.Compile(path);
 
         var bytes = new List<byte>();

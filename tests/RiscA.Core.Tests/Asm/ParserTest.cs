@@ -1,4 +1,4 @@
-﻿using RiscA.Core.Asm;
+using RiscA.Core.Asm;
 using RiscA.Core.ISA;
 using System;
 using System.Collections.Generic;
@@ -167,7 +167,7 @@ namespace RiscA.Core.Tests.Asm
             pi.Instructions[0].Func1.Should().Be(result[0]);
             pi.Instructions[0].Rd.Should().Be(result[1]);
             pi.Instructions[0].Imm8s.Should().Be(0);
-            pi.RefLabel.Should().Be(label);
+            pi.Fixups.Should().ContainSingle(f => f.Label == label && f.Kind == FixupKind.Branch && f.Slot == 0);
         }
 
         [Theory]
@@ -263,7 +263,9 @@ namespace RiscA.Core.Tests.Asm
             pi.Instructions[0].OpCode.Should().Be(OpCode.LDI);
             pi.Instructions[0].Rd.Should().Be(result[0]);
             pi.Instructions[0].Imm7.Should().Be(0);
-            pi.RefLabel.Should().Be(label);
+            //a hand written 'ldi r, [label]' loads the contents at the label: a PoolRef fixup
+            //with no pool slot target, so it is resolved directly and never relaxed
+            pi.Fixups.Should().ContainSingle(f => f.Label == label && f.Kind == FixupKind.PoolRef && f.Target == null && f.Slot == 0);
         }
 
         [Theory]
@@ -303,7 +305,8 @@ namespace RiscA.Core.Tests.Asm
             pi.Instructions[0].Func2.Should().Be(result[0]);
             pi.Instructions[0].Rd.Should().Be(0);
             pi.Instructions[0].Imm7.Should().Be(0);
-            pi.RefLabel.Should().Be(label);
+            pi.Fixups.Should().ContainSingle(f => f.Label == label && f.Slot == 0
+                && f.Kind == (result[0] == 0 ? FixupKind.Call : FixupKind.Jr));
         }
 
         [Theory]
@@ -455,7 +458,7 @@ namespace RiscA.Core.Tests.Asm
         {
             var pi = Parser.ParseLine(line);
             pi.IsDW.Should().BeTrue();
-            pi.RefLabel.Should().Be(label);
+            pi.Fixups.Should().ContainSingle(f => f.Label == label && f.Kind == FixupKind.DataAddr && f.Slot == 0);
             pi.Instructions.Should().HaveCount(2);
             pi.Instructions[0].Raw.Should().Be(0);
             pi.Instructions[1].Raw.Should().Be(0);
@@ -479,6 +482,72 @@ namespace RiscA.Core.Tests.Asm
         {
             Action act = () => Parser.ParseLine(line);
             act.Should().Throw<Exception>().WithMessage("*syntax error*");
+        }
+
+        [Theory]
+        //li Rd, value and la Rd, <number> build the MOVI/MOVL chain from the highest non zero
+        //byte of the constant (doc/assembler-architecture.md, 6.1): func 0 is MOVI, func 1 is MOVL
+        [InlineData("li r0, 0",          new int[] { 0 },          new int[] { 0 })]
+        [InlineData("li r3, 0xFF",       new int[] { 0 },          new int[] { 255 })]
+        [InlineData("li r1, 0x100",      new int[] { 0, 1 },       new int[] { 1, 0 })]
+        [InlineData("li r2, 0x12345678", new int[] { 0, 1, 1, 1 }, new int[] { 0x12, 0x34, 0x56, 0x78 })]
+        [InlineData("li r4, -1",         new int[] { 0, 1, 1, 1 }, new int[] { 255, 255, 255, 255 })]
+        [InlineData("la r5, 0x100",      new int[] { 0, 1 },       new int[] { 1, 0 })]
+        public void ParserLiChainTest(string line, int[] funcs, int[] imm8s)
+        {
+            var pi = Parser.ParseLine(line);
+
+            pi.Instructions.Should().HaveCount(imm8s.Length);
+            for (int i = 0; i < imm8s.Length; i++)
+            {
+                pi.Instructions[i].OpCode.Should().Be(OpCode.REG_IMM);
+                pi.Instructions[i].Func1.Should().Be(funcs[i]);
+                pi.Instructions[i].Imm8.Should().Be(imm8s[i]);
+            }
+            //the chain writes to one and the same register, the fixup list stays empty
+            pi.Instructions.Should().OnlyContain(x => x.Rd == int.Parse(line.Substring(4, 1)));
+            pi.Fixups.Should().BeEmpty();
+            pi.PoolRequests.Should().BeEmpty();
+        }
+
+        [Fact]
+        public void ParserLaLabelTest()
+        {
+            //la Rd, label leaves an LDI placeholder bound to the constant pool slot by pass B (doc 6.3)
+            var pi = Parser.ParseLine("la r2, msg");
+
+            pi.Instructions.Should().HaveCount(1);
+            pi.Instructions[0].OpCode.Should().Be(OpCode.LDI);
+            pi.Instructions[0].Rd.Should().Be(2);
+            pi.Instructions[0].Imm7.Should().Be(0);
+            pi.Fixups.Should().ContainSingle(f => f.Label == "msg" && f.Kind == FixupKind.PoolRef && f.Target == null && f.Slot == 0);
+            pi.PoolRequests.Should().ContainSingle().Which.Should().Be("msg");
+        }
+
+        [Theory]
+        [InlineData("j target", 7)]    //r7 is the scratch register of the LDI+JMP fallback by default
+        [InlineData("j target, r3", 3)]
+        public void ParserJLabelTest(string line, int reg)
+        {
+            var pi = Parser.ParseLine(line);
+
+            pi.Instructions.Should().HaveCount(1);
+            pi.Instructions[0].OpCode.Should().Be(OpCode.CALL_JMP_RET);
+            pi.Instructions[0].Func2.Should().Be((int)CallJmpRetFunc.JR);
+            pi.Instructions[0].Imm7.Should().Be(0);
+            pi.Fixups.Should().ContainSingle(f => f.Label == "target" && f.Kind == FixupKind.Jr && f.Slot == 0 && f.Reg == reg);
+        }
+
+        [Fact]
+        public void ParserJNumberTest()
+        {
+            //j <number> is a plain immediate jump, encoded with the CALL/JR split like 'call <number>'
+            var pi = Parser.ParseLine("j 20");
+            pi.Instructions[0].ImmCallJr.Should().Be(20);
+            pi.Fixups.Should().BeEmpty();
+
+            Action act = () => Parser.ParseLine("j 20000");
+            act.Should().Throw<Exception>().WithMessage("*-1024 .. 1023*");
         }
     }
 }

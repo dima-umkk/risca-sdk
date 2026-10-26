@@ -156,4 +156,69 @@ public class RunTest
         cpu.Regs[0].Should().Be(1);
         cpu.InstructionsRetired.Should().Be(100);
     }
+
+    [Fact]
+    public void A_far_branch_relaxed_to_an_inverted_branch_plus_jr_still_takes_the_jump()
+    {
+        //300 NOPs put 'end' past the +-128 instructions of the branch, so pass B inverts the beqz
+        //and inserts a jr behind it (doc/assembler-architecture.md, 6.4); r0 is not zero, the
+        //inverted branch falls through onto the jr, which skips the poison instruction at r0, 99
+        var cpu = Harness.Program("movi r0, 1\nbeqz r0, end\nmovi r0, 99\n"
+            + string.Concat(Enumerable.Repeat("nop\n", 300)) + "end: movi r0, 42\nreti\n");
+
+        var last = cpu.Run();
+
+        cpu.Regs[0].Should().Be(42);
+        last.Reason.Should().Be(StopReason.Reti);
+    }
+
+    [Fact]
+    public void A_far_j_relaxes_to_ldi_rN_plus_jmp_rN_and_lands_on_the_target()
+    {
+        //1100 NOPs put 'far' past the +-1024 instructions of JR: the j expands into LDI r3 from an
+        //inline mini pool (the pool slot at the end of the region is out of LDI reach itself) plus
+        //JMP r3. Assembled for the load address, so the dw pair carries the real code address (doc 6.1, 6.3)
+        var cpu = Harness.Program("j far, r3\n" + string.Concat(Enumerable.Repeat("nop\n", 1100)) + "far: movi r1, 7\nreti\n",
+            ramSize: 8192, origin: (int)Harness.Origin);
+
+        var last = cpu.Run();
+
+        cpu.Regs[1].Should().Be(7);
+        last.Reason.Should().Be(StopReason.Reti);
+    }
+
+    [Fact]
+    public void A_far_call_relaxes_to_ldi_r7_plus_call_r7_and_returns_to_the_caller()
+    {
+        //2100 NOPs put 'work' past the +-1024 words of CALL: the call expands into LDI r7 from an
+        //inline mini pool plus CALL r7 (doc 6.4); the link register works as with a near call, the
+        //reti right behind the call is the return point
+        var cpu = Harness.Program("call work\nreti\n" + string.Concat(Enumerable.Repeat("nop\n", 2100)) + "work: movi r0, 5\nret\n",
+            ramSize: 16384, origin: (int)Harness.Origin);
+
+        var last = cpu.Run();
+
+        cpu.Regs[0].Should().Be(5);
+        last.Reason.Should().Be(StopReason.Reti);
+    }
+
+    [Fact]
+    public void La_loads_the_address_of_a_label_from_the_constant_pool_of_its_region()
+    {
+        //the pool dw holds the absolute address of 'data'; loading it with the same origin the
+        //image is placed at makes a register load through r0 read the word constant itself (doc 6.3)
+        var cpu = Harness.Program("""
+            .func main:
+            la r0, data
+            ldw r1, [r0+0]
+            reti
+            nop
+            data: dw 1234
+            """, origin: (int)Harness.Origin);
+
+        var last = cpu.Run();
+
+        cpu.Regs[1].Should().Be(1234);
+        last.Reason.Should().Be(StopReason.Reti);
+    }
 }
