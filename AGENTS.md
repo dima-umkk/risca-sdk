@@ -65,6 +65,14 @@
   stays in a `dw` entry, which later doubles as the relocation table for load-at-any-address).
   Acceptance: all tests green, `samples/` images byte-identical to pre-A1, far jumps/calls
   assemble and execute in the emulator (`RunTest` assembles with `origin` = load address).
+  The accepted **A2** plan (section 7, not implemented yet): named frame slots with generated
+  prologue/epilogue (`.func name(a, b)` / `.endfunc` — save only the R8–R13 actually clobbered,
+  none for a leaf), `call f(a, b)` argument-list sugar (permutation via r6/r7; >6 args on the
+  stack per the fixed ABI in `doc/instruction-set.md`), and virtual-name register allocation in
+  `rasm` (linear-scan over the 16 physical registers, single-def SSA liveness, spill to auto
+  slots, mov/phi copy coalescing; the relaxation scratch r7 stays physical) — register
+  allocation lives in the assembler, not in the compiler (`rcc` stays a near-transliterator of
+  IL). New mechanisms stay silent for sources that use only physical registers.
 - **Machine design record:** `doc/emulator-architecture.md` — the agreed architecture of the emulator,
   debugger and compiler (one flat address space — every address reachable both from the fetch
   path and from `LDB/LDW/STB/STW`, a single load image, memory map with device blocks of 256 bytes at low
@@ -81,6 +89,9 @@
   both build in WSL (cproc: author's mirror `github.com/michaelforney/cproc`, download tarballs
   with Windows curl — github is unreachable from WSL; the `michg/cproc` fork's `rv32` target
   emits the pure-`w` ILP32 IL our back-end consumes; `-d A` and bundled `minic` show the IL).
+  Register allocation is decided to live in the assembler (accepted milestone **A2** plan,
+  `doc/assembler-architecture.md` section 7), so `rcc` consumes the IL's virtual temporaries
+  as named operands and stays a near-transliterator.
   The debugger and the compiler are not implemented yet.
 - **Emulator core** (`src/RiscA.Machine`, namespace `RiscA.Machine`, block-style namespaces):
   one flat `AddressSpace` — `RamRegion` (byte array, little-endian, unaligned words allowed) plus
