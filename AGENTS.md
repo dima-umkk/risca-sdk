@@ -38,6 +38,8 @@
   The `release` job writes `notes.md` from `git log` of the commits since the previous release
   (`gh release create --notes-file` / `gh release edit` on a rerun) — release notes are generated, never hand-written.
 - No lint/formatter config.
+- **Workflow:** never commit directly to `main` — work on a feature branch and open a
+  pull request; `main` moves only via merged PRs.
 - All projects: `<ImplicitUsings>enable</ImplicitUsings>`, `<Nullable>enable</Nullable>`.
 - **ISA docs:** `doc/RiscA.MD` is the spec and authority (a copy of the spec from the RTL repo
   `dima-umkk/risca`, with our own fixes applied — stale instruction lists, `func1` label, branch
@@ -72,7 +74,11 @@
   `rasm` (linear-scan over the 16 physical registers, single-def SSA liveness, spill to auto
   slots, mov/phi copy coalescing; the relaxation scratch r7 stays physical) — register
   allocation lives in the assembler, not in the compiler (`rcc` stays a near-transliterator of
-  IL). New mechanisms stay silent for sources that use only physical registers.
+  IL). New mechanisms stay silent for sources that use only physical registers. Inside a
+  named region physical registers are pinned point-uses only: `r14`/`r15`/`r7` are
+  assembly-time errors there, the return value is written as `.endfunc x` (the epilogue
+  moves `x` to `r0`), and the register pool for names is `r0..r6` (caller-saved class)
+  plus `r8..r13` (intervals live across calls) — never `r7/r14/r15`.
 - **Machine design record:** `doc/emulator-architecture.md` — the agreed architecture of the emulator,
   debugger and compiler (one flat address space — every address reachable both from the fetch
   path and from `LDB/LDW/STB/STW`, a single load image, memory map with device blocks of 256 bytes at low
