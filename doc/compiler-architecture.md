@@ -32,7 +32,7 @@ libc-модули (C) ───────────────────�
                                             ▼
                                prog.rasm (+ pool'ы констант)
                                             ▼
-                                  rasm ──► prog.bin ──► rsim run
+                                  rasm ──► prog.bin ──► rasim run
 ```
 
 `cproc` и QBE — MIT, можно вендорить в репозиторий как `third-party/` (решение по
@@ -243,7 +243,7 @@ ABI (фиксируем, совпадает со спекой, раздел ABI,
 
 - `crt0`: точка входа образа (`0x0001_0000`): инициализация `r15` (стек с конца RAM),
   `call main`, результат в код возврата... модельный стоп — `RET` в конец программы,
-  `rsim` трактует `RETI`/выход как успех; argv пока пустой, argc=1;
+  `rasim` трактует `RETI`/выход как успех; argv пока пустой, argc=1;
 - libc (компилируется нашим же компилятором + часть на `.rasm` поверх имеющегося
   `samples/lib/uart.rasm`): `getchar/putchar/gets`, `puts/printf` (`%d %u %x %s %c`,
   без float), `malloc` (bump-alloc поверх RAM), `strlen/strcpy/strcmp/memcpy/memset`,
@@ -260,7 +260,7 @@ tests/RiscA.Rcc.Tests/Golden/
    <имя>.expected     ожидаемый вывод + код возврата
 ```
 
-Прогон: наш `rcc` → `.rasm` → `rasm` → `.bin` → `rsim run`; контроль того же IL —
+Прогон: наш `rcc` → `.rasm` → `rasm` → `.bin` → `rasim run`; контроль того же IL —
 `qbe -o out.s && cc out.s && ./a.out` в WSL (эталон поведения самого IL-программиста).
 Первые сюжеты: hello (data+LDI), эхо-повтор UART, цикл-sum, fib (call/ret/стек),
 gcd (ветки/сравнения), таблица строк (`dw` меток).

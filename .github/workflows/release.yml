@@ -1,7 +1,10 @@
 name: release
 
 # Push в main или ручной запуск:
-# версия → тесты → нативные (NativeAOT) сборки rasm и rsim → GitHub Release с тегом v<version>.
+# main меняется только вручную влитым из dev pull request, поэтому релиз —
+# только когда владелец решает его выпустить; обычные PR живут в dev (ci.yml).
+# версия → тесты → нативные (NativeAOT) сборки rasm и rasim → GitHub Release с тегом v<version>,
+# по одному SDK-архиву risca-sdk-<version>-<rid>.zip на платформу.
 # Описание релиза job release собирает из git log: коммиты со времени предыдущего релиза.
 # Major и Minor задаются вручную в version.props, Patch = число коммитов в HEAD минус PatchBase (job version).
 
@@ -49,7 +52,7 @@ jobs:
           echo "minor=$minor" >> "$GITHUB_OUTPUT"
           echo "patch=$patch" >> "$GITHUB_OUTPUT"
           echo "version=$major.$minor.$patch" >> "$GITHUB_OUTPUT"
-          echo "==> rasm rsim $major.$minor.$patch  (major/minor: version.props, patch: $patch = $count - $base)"
+          echo "==> riscA SDK $major.$minor.$patch  (major/minor: version.props, patch: $patch = $count - $base)"
 
   test:
     name: test
@@ -111,7 +114,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          # build.ps1/build.sh складывают в artifacts/ архивы rasm-*.zip и rsim-*.zip
+          # build.ps1/build.sh кладут в artifacts/ единый архив risca-sdk-<version>-<rid>.zip
           name: dist-${{ needs.version.outputs.version }}-${{ matrix.rid }}
           path: artifacts/*.zip
           if-no-files-found: error
@@ -173,7 +176,7 @@ jobs:
             log="$(git log --no-merges --max-count=20 --pretty=format:'- %s (%h)' HEAD)"
           fi
           {
-            echo "Нативные (NativeAOT) сборки rasm и rsim $VERSION: win-x64, win-arm64, linux-x64, linux-arm64, osx-arm64."
+            echo "Нативные (NativeAOT) riscA SDK $VERSION: rasm + rasim, doc/ и ассемблерные библиотеки lib/ — win-x64, win-arm64, linux-x64, linux-arm64, osx-arm64."
             echo "Контрольные суммы архивов — в SHA256SUMS.txt."
             echo
             if [ -z "$range" ]; then
@@ -207,6 +210,6 @@ jobs:
           else
             gh release create "$TAG" dist/* \
               --target "$GITHUB_SHA" \
-              --title "rasm + rsim $VERSION" \
+              --title "riscA SDK $VERSION" \
               --notes-file notes.md
           fi

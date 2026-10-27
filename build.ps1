@@ -1,18 +1,19 @@
 #!/usr/bin/env pwsh
 <#
- Нативная (NativeAOT) сборка rasm и rsim.
+ Нативная (NativeAOT) сборка rasm и rasim.
 
    .\build.ps1                    # RIDы текущей платформы (Windows: win-x64, win-arm64)
    .\build.ps1 -Rid win-x64       # только нужные RID
-   .\build.ps1 -Tool rsim         # только нужные утилиты (rasm, rsim)
+   .\build.ps1 -Tool rasim         # только нужные утилиты (rasm, rasim)
    .\build.ps1 -Patch 42          # переопределить Patch (по умолчанию = число коммитов минус PatchBase)
 
- Результат: artifacts/<rid>/<tool>[.exe] и artifacts/<tool>-<version>-<rid>.zip
+ Результат: artifacts/<rid>/<tool>[.exe] и единый архив artifacts/risca-sdk-<version>-<rid>.zip
+ (инструменты + doc/ + samples/lib как lib/)
  Major и Minor берутся из version.props, Patch — отсюда или из CI.
 #>
 param(
     [string[]]$Rid,
-    [string[]]$Tool = @('rasm', 'rsim'),
+    [string[]]$Tool = @('rasm', 'rasim'),
     [int]$Patch = -1,
     [string]$OutDir = 'artifacts',
     [switch]$NoZip
@@ -20,10 +21,10 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $root = $PSScriptRoot
-# имя утилиты -> проект; имя бинарника совпадает с ключом, его и кладём в архив
+# имя утилиты -> проект; имя бинарника совпадает с ключом
 $projects = [ordered]@{
     'rasm' = 'src/RiscA.Assembler/RiscA.Assembler.csproj'
-    'rsim' = 'src/RiscA.Rsim/RiscA.Rsim.csproj'
+    'rasim' = 'src/RiscA.Rasim/RiscA.Rasim.csproj'
 }
 $unknown = @($Tool | Where-Object { $projects.Keys -notcontains $_ })
 if ($unknown.Count -gt 0) { throw "unknown tool: $($unknown -join ', ') (known: $($projects.Keys -join ', '))" }
@@ -72,11 +73,22 @@ foreach ($r in $Rid) {
 
         $exe = if ($r.StartsWith('win')) { "$name.exe" } else { $name }
         Write-Host ("  {0,-6} {1,-12} {2,10:N0} KB" -f [string]$name, $r, ((Get-Item (Join-Path $out $exe)).Length / 1KB))
+    }
 
-        if (-not $NoZip) {
-            $zip = Join-Path $outRoot "$name-$version-$r.zip"
-            Compress-Archive -Path (Join-Path $out $exe) -DestinationPath $zip -Force
-            Write-Host "  zip: $zip"
+    if (-not $NoZip) {
+        # единый SDK-архив: инструменты этой публикации + доки + ассемблерные библиотеки (samples/lib -> lib/)
+        $stage = Join-Path $outRoot ".sdk-stage-$r"
+        Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
+        New-Item -ItemType Directory -Path $stage | Out-Null
+        foreach ($name in $Tool) {
+            $exe = if ($r.StartsWith('win')) { "$name.exe" } else { $name }
+            Copy-Item (Join-Path $out $exe) $stage
         }
+        Copy-Item (Join-Path $root 'samples/lib') (Join-Path $stage 'lib') -Recurse
+        Copy-Item (Join-Path $root 'doc') (Join-Path $stage 'doc') -Recurse
+        $zip = Join-Path $outRoot "risca-sdk-$version-$r.zip"
+        Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip -Force
+        Remove-Item $stage -Recurse -Force
+        Write-Host "  zip: $zip"
     }
 }

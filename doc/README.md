@@ -1,7 +1,7 @@
 # RiscA SDK — навигатор по документации
 
 RiscA — своя 16-битная ISA (инструкции фиксированные, 32-битные данные, 16 регистров,
-little-endian). Этот репозиторий — SDK: ассемблер `rasm`, эмулятор `rsim`, и в планах
+little-endian). Этот репозиторий — SDK: ассемблер `rasm`, эмулятор `rasim`, и в планах
 компилятор C и отладчик. Документация разделена по архитектуре компонентов; этот файл —
 навигатор плюс шпаргалка, которая закрывает повседневные нужды.
 
@@ -97,10 +97,10 @@ dotnet build                                  # .NET 10
 dotnet test                                   # xunit + FluentAssertions
 # сборка и запуск примера:
 artifacts\win-x64\rasm -i samples\uart.echo.rasm -o uart.echo.bin -l uart.echo.lst -vi
-artifacts\win-x64\rsim run uart.echo.bin
+artifacts\win-x64\rasim run uart.echo.bin
 ```
 
 Альтернатива без публикации: `dotnet run --project src/RiscA.Assembler -- -i samples/base.test.rasm`.
 Флаги: `rasm -i <файл> [-o bin] [-l листинг] [-vp] [-vi] [-V]`;
-`rsim run <bin> [--stdin файл] [--trace файл] [--limit N] ...` — коды выхода `rsim` описаны
+`rasim run <bin> [--stdin файл] [--trace файл] [--limit N] ...` — коды выхода `rasim` описаны
 в [`../AGENTS.md`](../AGENTS.md) и `emulator-architecture.md`.
