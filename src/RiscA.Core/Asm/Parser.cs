@@ -105,7 +105,13 @@ namespace RiscA.Core.Asm
 
         public static ParsedInstruction ParseLine(string line, IReadOnlyDictionary<string, int>? constants)
         {
-            List<Token> tokens = Tokenizer.TokenizeLine(line);
+            return ParseTokens(Tokenizer.TokenizeLine(line), constants);
+        }
+
+        //the rule loop over an already tokenized line: Frame lowers a named region to physical
+        //tokens and parses them back through the very same rules (doc/assembler-architecture.md, 7.3)
+        public static ParsedInstruction ParseTokens(List<Token> tokens, IReadOnlyDictionary<string, int>? constants)
+        {
             SubstituteConstants(tokens, constants);
             ParsedInstruction parsedInstruction = new ParsedInstruction();
             while (ProcessToken(tokens, parsedInstruction, rules))

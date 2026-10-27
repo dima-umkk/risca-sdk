@@ -89,11 +89,17 @@
   `ParsedInstruction.IsEnd`), `.func name(a, b)` parameter parsing (`ParseFuncParams`, `FuncParams`;
   the name becomes the entry label), `ret x` expansion (`ParseRetReg`: `mov r0, x` + `RET R14`), and
   `Asm/Regions.cs` — a pre-parse region scan (boundaries `.func` … `.end`/next `.func`/EOF, every 7.2
-  prohibition of a named region reported by name, then named regions gated with 'virtual names are
-  not assembled yet'); physical-only sources assemble byte-identically. The rest of A2 is not
-  implemented: named frame slots with generated
-  prologue/epilogue (`.func name(a, b)` / `.end` — save only the R8–R13 actually clobbered,
-  none for a leaf), `call f(a, b)` argument-list sugar (permutation via r6/r7; >6 args on the
+  prohibition of a named region reported by name) returning a `List<Regions.RegionInfo>`;
+  **A2.2 is implemented**: `Asm/Frame.cs` lowers a named region before pass A — every name gets one
+  4-byte frame slot, the `.func` line grows a prologue (`SUB R15`, the saves, the parameters from
+  r0..r5 by position), body lines are rewritten to physical tokens (slot accesses over the scratches
+  r7, then r6, which r6 is therefore forbidden in the body until the allocator), and one epilogue
+  per region (label `@retN`, restore, `ADD R15`, `RET R14`) is inserted after the last body line;
+  every `ret x` moves its value to r0 and jumps there. Interim until A2.3: every name lives in its
+  slot (the frame is capped at 7 slots, the LDW/STW word-offset range), and the prologue saves R14
+  plus the actually clobbered r8..r13 only when the body calls; `li`/`la` with a name operand are
+  errors waiting for the allocator. Physical-only sources assemble byte-identically. The rest of
+  A2 is not implemented: `call f(a, b)` argument-list sugar (permutation via r6/r7; >6 args on the
   stack per the fixed ABI in `doc/instruction-set.md`), and virtual-name register allocation in
   `rasm` (linear-scan over the 16 physical registers, single-def SSA liveness, spill to auto
   slots, mov/phi copy coalescing; the relaxation scratch r7 stays physical) — register

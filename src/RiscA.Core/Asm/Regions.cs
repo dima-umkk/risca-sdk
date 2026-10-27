@@ -6,19 +6,23 @@ namespace RiscA.Core.Asm
     /// <summary>
     /// The region check of doc/assembler-architecture.md, 7.2. It runs over the tokenized lines
     /// before any line is parsed, because the parser rules only know physical registers and would
-    /// report a virtual name as a generic syntax error. A2.1 recognizes and validates named
-    /// regions but does not assemble them yet; regions that use only physical registers - every
-    /// source of today - pass through unchanged.
+    /// report a virtual name as a generic syntax error. A named region is validated here and its
+    /// data - parameters, names, body tokens - is handed to Frame, which lowers it to physical
+    /// code (7.3); regions that use only physical registers - every source of today - pass
+    /// through unchanged.
     /// </summary>
     public static class Regions
     {
         //registers the assembler owns inside a named region: r7 is the relaxation scratch,
-        //R14 the link and R15 the frame pointer of the generated prologue/epilogue (doc 7.5)
-        static bool IsMachineRegister(int number) => number is 7 or 14 or 15;
+        //r6 is borrowed as the second scratch of the A2.2 lowering until the allocator (A2.3)
+        //binds names to registers, R14 the link and R15 the frame pointer of the generated
+        //prologue/epilogue (doc 7.5)
+        static bool IsMachineRegister(int number) => number is 6 or 7 or 14 or 15;
 
-        public static void Check(List<SrcLine> lines, Dictionary<string, int> constants)
+        public static List<RegionInfo> Check(List<SrcLine> lines, Dictionary<string, int> constants)
         {
-            var region = new Region(constants);
+            var named = new List<RegionInfo>();
+            var region = new Region(constants, named);
             foreach (var line in lines)
             {
                 if (line.ParsedInstruction is not null)
@@ -43,6 +47,7 @@ namespace RiscA.Core.Asm
                 }
             }
             region.Close(); //the file ends the last region
+            return named;
         }
 
         //a line that fails to tokenize is left to pass A, which reports it with its own context
@@ -61,17 +66,37 @@ namespace RiscA.Core.Asm
         static Exception Error(SrcLine line, string message) =>
             new Exception($"{line.Filename}:{line.Pos + 1}: {message}");
 
-        class Region(Dictionary<string, int> constants)
+        //everything Frame needs to assemble one named region; the token lists stay as they came
+        //from the tokenizer, Frame rewrites copies of them
+        public class RegionInfo(
+            SrcLine owner, string name, List<string> parameters, List<string> names,
+            List<(SrcLine line, List<Token> tokens)> body)
+        {
+            public SrcLine Owner { get; } = owner;
+            public string Name { get; } = name;
+            //the '.func f(a, b)' arguments in declaration order: they arrive in r0..r5 (doc 7.1)
+            public List<string> Parameters { get; } = parameters;
+            //every virtual name of the region: the parameters first, the rest in order of first
+            //appearance in the body, which is the frame slot order of the prologue (doc 7.3)
+            public List<string> Names { get; } = names;
+            public List<(SrcLine Line, List<Token> Tokens)> Body { get; } = body;
+        }
+
+        class Region(Dictionary<string, int> constants, List<RegionInfo> named)
         {
             public SrcLine? Owner { get; private set; }
             string name = "";
             List<string> parameters = [];
+            List<string> names = [];
+            HashSet<string> labels = new(StringComparer.OrdinalIgnoreCase);
             List<(SrcLine line, List<Token> tokens)> body = [];
 
             public void Open(SrcLine line, List<Token> tokens)
             {
                 Owner = line;
                 parameters.Clear();
+                names.Clear();
+                labels.Clear();
                 body.Clear();
                 int i = 1;
                 if (i >= tokens.Count || tokens[i].TokenType != TK.LITERAL)
@@ -133,22 +158,19 @@ namespace RiscA.Core.Asm
             {
                 if (Owner is null)
                     return;
-                var names = new HashSet<string>(parameters, StringComparer.OrdinalIgnoreCase);
-                var labels = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { name };
+                labels.Add(name);
+                names.AddRange(parameters); //the parameters are the first names, in declaration order
                 foreach (var (line, tokens) in body)
-                    Collect(line, tokens, names, labels);
+                    Collect(line, tokens);
                 if (names.Count > 0)
                 {
                     Validate();
                     foreach (var n in names)
                         if (labels.Contains(n))
                             throw Error(Owner, $"name '{n}' is also a label of the region of '{name}'");
-                    //A2.2 will assemble named regions; until then they fail here, not as syntax noise
-                    throw Error(Owner, $"region of '{name}': virtual names are not assembled yet");
+                    named.Add(new RegionInfo(Owner, name, [.. parameters], [.. names], [.. body]));
                 }
                 Owner = null;
-                parameters.Clear();
-                body.Clear();
             }
 
             //the prohibitions of doc 7.2 and 7.5 checked in the region body itself
@@ -164,13 +186,20 @@ namespace RiscA.Core.Asm
                             throw Error(line, $"'{t.TokenString}' is not allowed in a named region of '{name}': R15 is the frame pointer");
                         if (IsConstantBracketBase(tokens, i))
                             throw Error(line, $"'{tokens[i + 1].TokenString}' is an .equ constant, not a frame slot of '{name}'");
+                        if (t.TokenType is TK.LI or TK.LA)
+                        {
+                            if (i + 1 < tokens.Count && IsName(tokens[i + 1].TokenString))
+                                throw Error(line, $"'{t.TokenString}' with virtual name '{tokens[i + 1].TokenString}' is assembled after register allocation (A2.3)");
+                            if (i + 3 < tokens.Count && tokens[i + 2].TokenType == TK.COMMA && IsName(tokens[i + 3].TokenString))
+                                throw Error(line, $"'{t.TokenString}' with virtual name '{tokens[i + 3].TokenString}' is assembled after register allocation (A2.3)");
+                        }
                     }
             }
 
             //a LITERAL becomes a virtual name unless the grammar places it in a label position:
             //a label definition, a label reference ('call x', 'j x', 'dw x', 'beqz r, x', 'ldi r, [x]')
             //or an .equ constant, which is a number to the parser
-            void Collect(SrcLine line, List<Token> tokens, HashSet<string> names, HashSet<string> labels)
+            void Collect(SrcLine line, List<Token> tokens)
             {
                 for (int i = 0; i < tokens.Count; i++)
                 {
@@ -179,14 +208,14 @@ namespace RiscA.Core.Asm
                     if (i + 2 < tokens.Count && tokens[i].TokenType == TK.LSBRACKET
                         && tokens[i + 1].TokenType == TK.LITERAL && tokens[i + 2].TokenType == TK.PLUS)
                     {
-                        names.Add(tokens[i + 1].TokenString); //[buf + off] is a memory position
+                        AddName(tokens[i + 1].TokenString); //[buf + off] is a memory position
                         continue;
                     }
                     if (i + 2 < tokens.Count && tokens[i].TokenType == TK.RET
                         && tokens[i + 1].TokenType == TK.LITERAL && tokens[i + 2].TokenType == TK.EOL)
                     {
                         if (!constants.ContainsKey(tokens[i + 1].TokenString))
-                            names.Add(tokens[i + 1].TokenString); //'ret x' names its exit value
+                            AddName(tokens[i + 1].TokenString); //'ret x' names its exit value
                         continue;
                     }
                     Token t = tokens[i];
@@ -198,9 +227,18 @@ namespace RiscA.Core.Asm
                         continue;
                     }
                     if (!constants.ContainsKey(t.TokenString))
-                        names.Add(t.TokenString);
+                        AddName(t.TokenString);
                 }
             }
+
+            void AddName(string tokenString)
+            {
+                if (!IsName(tokenString))
+                    names.Add(tokenString);
+            }
+
+            bool IsName(string tokenString) =>
+                names.Exists(n => n.Equals(tokenString, StringComparison.OrdinalIgnoreCase));
 
             //[CONST + off] in a body line: a constant as the base of a memory position,
             //which doc 7.2 lists as a name silently replaced by a number
@@ -212,7 +250,7 @@ namespace RiscA.Core.Asm
             static bool IsReferencePosition(List<Token> tokens, int i) =>
                 i > 0 && (tokens[i - 1].TokenType is TK.CALL or TK.J or TK.JR or TK.DW or TK.LSBRACKET
                     || (i > 2 && tokens[i - 1].TokenType == TK.COMMA
-                        && tokens[i - 2].TokenType == TK.REG
+                        && tokens[i - 2].TokenType is TK.REG or TK.LITERAL
                         && tokens[i - 3].TokenType is TK.BEQZ or TK.BNEZ or TK.LA));
         }
     }
