@@ -1,11 +1,6 @@
 using RiscA.Core.ISA;
 using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Data;
-using System.Runtime.InteropServices;
-using System.Text;
-using System.Text.RegularExpressions;
 
 namespace RiscA.Core.Asm
 {
@@ -399,7 +394,7 @@ namespace RiscA.Core.Asm
 
             var i = new Instruction(0)
                 .withOpCode(OpCode.CALL_JMP_RET)
-                .withFunc2(tokens[pos].TokenType == TK.JR ? 3 : 0)
+                .withFunc2(tokens[pos].TokenType == TK.JR ? (int)CallJmpRetFunc.JR : (int)CallJmpRetFunc.CALL_IMM)
                 .withRd(rd)
                 .withImm7(imm7);
             if (tokens[pos + 1].TokenType == TK.NUMBER)
@@ -415,10 +410,12 @@ namespace RiscA.Core.Asm
         //[TK.CALL, TK.JMP, TK.INT], [TK.REG], [TK.EOL]
         static List<Token>? ParseCallJmpInt(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
         {
+            //CALL_JMP_RET func2s are the CallJmpRetFunc enum; 'int' assembles a different
+            //opcode (INT_RETI) whose func2 has no enum of its own
             var func2 = (tokens[pos].TokenType) switch
             {
-                TK.CALL => 1,
-                TK.JMP => 2,
+                TK.CALL => (int)CallJmpRetFunc.CALL_REG,
+                TK.JMP => (int)CallJmpRetFunc.RET,
                 TK.INT => 0,
                 _ => 0,
             };
@@ -426,7 +423,6 @@ namespace RiscA.Core.Asm
                 .withOpCode(tokens[pos].TokenType == TK.INT ? OpCode.INT_RETI : OpCode.CALL_JMP_RET)
                 .withFunc2(func2)
                 .withRd(tokens[pos + 1].intValue);
-            ;
             parsedInstruction.Instructions.Add(i);
             tokens.RemoveRange(pos, 3);
             return tokens;
@@ -437,7 +433,7 @@ namespace RiscA.Core.Asm
         {
             var i = new Instruction(0)
                 .withOpCode(tokens[pos].TokenType == TK.RETI ? OpCode.INT_RETI : OpCode.CALL_JMP_RET)
-                .withFunc2(tokens[pos].TokenType == TK.RETI ? 1 : 2)
+                .withFunc2(tokens[pos].TokenType == TK.RETI ? 1 : (int)CallJmpRetFunc.RET) //1: INT_RETI func2, no enum
                 .withRd(tokens[pos].TokenType == TK.RETI ? 0 : 14); //R14 link register
             parsedInstruction.Instructions.Add(i);
             tokens.RemoveRange(pos, 2);

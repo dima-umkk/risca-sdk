@@ -1,7 +1,6 @@
 using RiscA.Core.ISA;
 using System;
 using System.Collections.Generic;
-using System.Text;
 
 namespace RiscA.Core.Asm
 {
@@ -21,7 +20,7 @@ namespace RiscA.Core.Asm
     {
         int curAddress = address;
 
-        public List<SrcLine> Src { get {  return src; }  }
+        public List<SrcLine> Src => src;
         List<SrcLine> src = [];
 
         Dictionary<string, SrcLine> labelMap = [];
