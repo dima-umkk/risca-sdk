@@ -1,6 +1,8 @@
 name: release
 
 # Push в main или ручной запуск:
+# main меняется только вручную влитым из dev pull request, поэтому релиз —
+# только когда владелец решает его выпустить; обычные PR живут в dev (ci.yml).
 # версия → тесты → нативные (NativeAOT) сборки rasm и rsim → GitHub Release с тегом v<version>.
 # Описание релиза job release собирает из git log: коммиты со времени предыдущего релиза.
 # Major и Minor задаются вручную в version.props, Patch = число коммитов в HEAD минус PatchBase (job version).
