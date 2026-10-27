@@ -25,15 +25,11 @@ namespace RiscA.Core.Asm
         //a directive line is only recognized when its whole argument matches a pattern, just
         //like an instruction is recognized by Parser.rules. Expression rules come first so a
         //value can be an arithmetic expression over numbers, the directive rules then consume
-        //the finished line, and Skip drops a lone '.name' standing alone on its line.
+        //the finished line, and the shared skip rule at the tail drops empty lines.
         static List<(List<TK[]> pattern, RuleHandler<DirectiveMatch> handler)> directiveRules =
             [
-                //Expressions (the same reductions the parser applies to numbers)
-                ([ [TK.MINUS], [TK.NUMBER] ], ExpNegative),
-                ([ [TK.LPAREN], [TK.NUMBER], [TK.RPAREN] ], ExpParen),
-                ([ [TK.NUMBER], [TK.ASTER, TK.SLASH], [TK.NUMBER] ], ExpMath),
-                ([ [TK.NUMBER], [TK.MINUS], [TK.NUMBER] ], ExpMath),
-                ([ [TK.NUMBER], [TK.PLUS], [TK.NUMBER] ], ExpMath),
+                //Expressions - the same rules the parser runs (Asm/Expressions.cs)
+                .. Expressions.Rules<DirectiveMatch>(),
 
                 //equ: NAME, value | NAME, -value
                 ([ [TK.EQU], [TK.LITERAL], [TK.COMMA], [TK.NUMBER], [TK.EOL] ], DefineEqu),
@@ -50,7 +46,7 @@ namespace RiscA.Core.Asm
                 ([ [TK.DOTNAME] ], UnknownDirective),
 
                 //Skip rules
-                ([ [TK.EOL] ], Skip), //a '.name' alone on its line, nothing to apply it to
+                ([ [TK.EOL] ], Expressions.Skip<DirectiveMatch>), //empty line
             ];
 
         //what the directive rules report about a source line: the directive it opens with and
@@ -163,43 +159,6 @@ namespace RiscA.Core.Asm
         //argument and consumes the whole line - a directive never leaves tokens behind, so the
         //engine stops after the single rule that fired
 
-        static List<Token>? ExpMath(DirectiveMatch match, List<TK[]> rule, List<Token> tokens, int pos)
-        {
-            int a = tokens[pos + 0].intValue;
-            int b = tokens[pos + 2].intValue;
-            int c = tokens[pos + 1].TokenType switch
-            {
-                TK.PLUS => a + b,
-                TK.MINUS => a - b,
-                TK.ASTER => a * b,
-                TK.SLASH => a / b,
-                _ => throw new Exception($"Unexpected math operation '{tokens[pos + 1].TokenString}' in '{tokens[pos].TokenString} {tokens[pos + 1].TokenString} {tokens[pos + 2].TokenString}'")
-            };
-            tokens.RemoveRange(pos, 3);
-            tokens.Insert(pos, new Token(TK.NUMBER, c.ToString(), pos, c));
-            return tokens;
-        }
-
-        static List<Token>? ExpParen(DirectiveMatch match, List<TK[]> pattern, List<Token> tokens, int pos)
-        {
-            Token number = tokens[pos + 1];
-            tokens.RemoveRange(pos, 3);
-            tokens.Insert(pos, number);
-            return tokens;
-        }
-
-        static List<Token>? ExpNegative(DirectiveMatch match, List<TK[]> pattern, List<Token> tokens, int pos)
-        {
-            if (pos > 0 && tokens[pos - 1].TokenType is TK.NUMBER or TK.RPAREN)
-                return null;
-            Token number = tokens[pos + 1];
-            number.intValue = 0 - number.intValue;
-            number.TokenString = number.intValue.ToString();
-            tokens.RemoveRange(pos, 2);
-            tokens.Insert(pos, number);
-            return tokens;
-        }
-
         //'.equ NAME, value' accepted in full: record the directive, the name and the value are
         //taken from the bound tokens
         static List<Token>? DefineEqu(DirectiveMatch match, List<TK[]> pattern, List<Token> tokens, int pos)
@@ -274,12 +233,6 @@ namespace RiscA.Core.Asm
             throw new Exception(
                 $"{match.Src.Filename}:{match.Src.Pos + 1}: unknown directive '{tokens[pos].TokenString}', " +
                 $"expected {EquDirective} or {IncludeDirective}");
-        }
-
-        static List<Token>? Skip(DirectiveMatch match, List<TK[]> pattern, List<Token> tokens, int pos)
-        {
-            tokens.RemoveRange(pos, pattern.Count);
-            return tokens;
         }
 
         //the source text following a directive keyword at the start of the line, comment removed:

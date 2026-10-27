@@ -234,6 +234,8 @@ namespace RiscA.Core.Tests.Asm
         [InlineData(".equ A, 10 / 2", 5)]
         [InlineData(".equ A, (7)", 7)]
         [InlineData(".equ A, 1 + 2 * 3", 7)]
+        [InlineData(".equ A, 6 / 3 / 2", 1)]
+        [InlineData(".equ A, 100 - 20 - 5", 75)]
         public void ConstantValueMayBeANumberExpression(string declaration, int expected)
         {
             //the preprocessor runs the same number-expression rules as the parser, so a constant
@@ -244,6 +246,29 @@ namespace RiscA.Core.Tests.Asm
             string reference = src.Write("reference.rasm", $"    movi r1, {expected}\n");
 
             Code(main).Should().Be(Code(reference));
+        }
+
+        [Fact]
+        public void ExpressionMeansTheSameInAConstantAndInline()
+        {
+            //the expression rules of the two passes are one shared set (Asm/Expressions.cs):
+            //a constant defined by an expression and the same expression written in place
+            //must assemble to the same words
+            using var src = new TempSource();
+            string viaConstant = src.Write("constant.rasm", ".equ A, 6 / 3 / 2\n    dw A\n");
+            string viaExpression = src.Write("expression.rasm", "    dw 6 / 3 / 2\n");
+
+            Words(viaConstant).Should().Equal(Words(viaExpression));
+        }
+
+        [Fact]
+        public void DivisionByZeroIsReported()
+        {
+            using var src = new TempSource();
+            string main = src.Write("main.rasm", ".equ A, 1 / 0\n");
+
+            Action act = () => Words(main);
+            act.Should().Throw<Exception>().WithMessage("*Division by zero in '1 / 0'*");
         }
 
         [Fact]
