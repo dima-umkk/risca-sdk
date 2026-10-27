@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Нативная (NativeAOT) сборка rasm и rsim.
+# Нативная (NativeAOT) сборка rasm и rasim.
 #
 #   ./build.sh                 # RID текущей платформы
 #   ./build.sh linux-x64       # конкретные RID
-#   TOOLS="rsim" ./build.sh    # только нужные утилиты (по умолчанию rasm rsim)
+#   TOOLS="rasim" ./build.sh    # только нужные утилиты (по умолчанию rasm rasim)
 #   PATCH=42 ./build.sh        # переопределить Patch (по умолчанию = число коммитов минус PatchBase)
 #
 # Результат: artifacts/<rid>/<tool>[.exe] и artifacts/<tool>-<version>-<rid>.zip
@@ -11,7 +11,7 @@
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-read -r -a tools <<< "${TOOLS:-rasm rsim}"
+read -r -a tools <<< "${TOOLS:-rasm rasim}"
 outdir="${OUTDIR:-$root/artifacts}"
 
 case "$(uname -s)/$(uname -m)" in
@@ -52,8 +52,8 @@ for r in "${rids[@]}"; do
   for tool in "${tools[@]}"; do
     case "$tool" in
       rasm) rel=src/RiscA.Assembler/RiscA.Assembler.csproj ;;
-      rsim) rel=src/RiscA.Rsim/RiscA.Rsim.csproj ;;
-      *) echo "unknown tool: $tool (known: rasm rsim)" >&2; exit 1 ;;
+      rasim) rel=src/RiscA.Rasim/RiscA.Rasim.csproj ;;
+      *) echo "unknown tool: $tool (known: rasm rasim)" >&2; exit 1 ;;
     esac
     # ${extra[@]+"${extra[@]}"} — пустой массив под set -u: в bash 3.2 (macOS) "${extra[@]}" считается unbound.
     dotnet publish "$root/$rel" -c Release -r "$r" "-p:MajorVersion=$major" "-p:MinorVersion=$minor" "-p:PatchVersion=$patch" ${extra[@]+"${extra[@]}"} --nologo -o "$outdir/$r"
