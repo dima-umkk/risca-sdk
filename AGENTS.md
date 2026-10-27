@@ -38,6 +38,8 @@
   The `release` job writes `notes.md` from `git log` of the commits since the previous release
   (`gh release create --notes-file` / `gh release edit` on a rerun) — release notes are generated, never hand-written.
 - No lint/formatter config.
+- **Comments:** code must be self-documenting — keep only comments that state what the code cannot
+  say, one line each; never restate a name, a pattern or the grammar. Apply this in every change.
 - **Workflow:** never commit directly to `main` — work on a feature branch and open a
   pull request; `main` moves only via merged PRs.
 - All projects: `<ImplicitUsings>enable</ImplicitUsings>`, `<Nullable>enable</Nullable>`.

@@ -4,48 +4,27 @@ using System.IO;
 
 namespace RiscA.Core.Asm
 {
-    /// <summary>
-    /// Source pass that runs before the parser: splices <c>.include "file"</c> and collects
-    /// <c>.equ NAME, value</c> constants. Constants are substituted by
-    /// <see cref="Parser.ParseLine(string, IReadOnlyDictionary{string, int})"/> wherever a
-    /// number is expected, so they work in immediates, in <c>[r+off]</c> offsets and in db/dw.
-    /// See doc/emulator-architecture.md, section 8.
-    ///
-    /// Only '.equ' and '.include' belong to this pass. '.func' opens a function entry and is
-    /// not a preprocessor directive: the line stays ordinary code, the parser rule for TK.FUNC
-    /// marks it (ParsedInstruction.IsFunc) and the assembler owns the entry and its alignment.
-    /// </summary>
+    /// <summary>Source pass before the parser: splices <c>.include</c> and defines <c>.equ</c>
+    /// constants, which the parser substitutes later.</summary>
     public class Preprocessor
     {
-        //The commands of this pass are found with the same rule engine the parser runs
-        //(Parser.ProcessToken), and the patterns below describe the directive grammar in full:
-        //a directive line is only recognized when its whole argument matches a pattern, just
-        //like an instruction is recognized by Parser.rules. Expression rules come first so a
-        //value can be an arithmetic expression over numbers, the directive rules then consume
-        //the finished line, and the shared skip rule at the tail drops empty lines.
+        //the same rule engine as the parser: a directive counts only when its whole line matches
         static List<(List<TK[]> pattern, RuleHandler<DirectiveMatch> handler)> directiveRules =
             [
-                //Expressions - the same rules the parser runs (Asm/Expressions.cs)
                 .. Expressions.Rules<DirectiveMatch>(),
 
                 //equ: NAME, value | NAME, -value
                 ([ [TK.EQU], [TK.LITERAL], [TK.COMMA], [TK.NUMBER], [TK.EOL] ], DefineEqu),
                 ([ [TK.EQU], [TK.LITERAL], [TK.COMMA], [TK.MINUS, TK.NUMBER], [TK.EOL] ], DefineEqu),
-                //include: "file" | 'file'
                 ([ [TK.INCLUDE], [TK.STRING], [TK.EOL] ], DefineInclude),
 
-                //a directive opening a line that none of the full patterns above consumed:
-                //one message naming the offending token and the two accepted forms - this pass
-                //does not re-parse the argument to guess which half of it is wrong
+                //a '.equ'/'.include'/'.name' that no full pattern above consumed
                 ([ [TK.EQU, TK.INCLUDE, TK.DOTNAME] ], ReportDirectiveError),
 
-                //Skip rules
                 ([ [TK.EOL] ], Expressions.Skip<DirectiveMatch>), //empty line
             ];
 
-        //what the directive rules report about a source line: which directive token opens it and
-        //the parts of its argument the patterns bound; Directive stays null when the line is
-        //ordinary code or a directive the full pattern did not accept
+        //a line the directive rules recognized; Directive is null when it is ordinary code
         private class DirectiveMatch
         {
             public required SrcLine Src { get; init; }
@@ -62,8 +41,7 @@ namespace RiscA.Core.Asm
         Dictionary<string, int> constants = new(StringComparer.OrdinalIgnoreCase);
         Dictionary<string, SrcLine> definedAt = new(StringComparer.OrdinalIgnoreCase);
 
-        //a file is spliced in at most once per compilation, which protects both from include
-        //cycles and from pulling the same library in twice through two different chains
+        //each file is spliced in at most once, which also breaks include cycles
         HashSet<string> included = new(StringComparer.OrdinalIgnoreCase);
         string rootDir = "";
 
@@ -92,14 +70,12 @@ namespace RiscA.Core.Asm
                 var srcline = new SrcLine(text[i], i, path);
                 var match = DetectDirective(srcline);
                 if (match.Directive is null)
-                {//ordinary code - including the '.func' line, which the parser recognizes and
-                 //the assembler aligns - the parser of the assembler will read it
+                {//ordinary code, including '.func', is read by the parser
                     lines.Add(srcline);
                     continue;
                 }
 
-                //directives produce no code, but they stay in the listing;
-                //ParsedInstruction is pre-set so the first pass does not try to parse them
+                //directives stay in the listing but pass A must not parse them
                 srcline.ParsedInstruction = new ParsedInstruction();
                 lines.Add(srcline);
 
@@ -107,7 +83,6 @@ namespace RiscA.Core.Asm
                 {
                     case TK.INCLUDE:
                         string inc = FindIncludedFile(srcline, match.IncludePath);
-                        //a file already standing in the listing is skipped, breaking include cycles
                         if (included.Add(inc))
                             IncludeFile(inc);
                         break;
@@ -118,11 +93,7 @@ namespace RiscA.Core.Asm
             }
         }
 
-        //runs the directive rules over the line and reports what they recognized: Directive stays
-        //null while the stack still holds tokens, which means the grammar of the directives
-        //does not accept this line and it is ordinary code for the parser. A line the tokenizer
-        //cannot read is left to the parser as well - it reports the broken syntax with its own
-        //message, and the assembler adds the file and line number to it once
+        //leftover tokens or an unreadable line mean the grammar rejects it: ordinary code
         DirectiveMatch DetectDirective(SrcLine srcline)
         {
             var match = new DirectiveMatch { Src = srcline };
@@ -142,12 +113,6 @@ namespace RiscA.Core.Asm
             return match;
         }
 
-        //directive rules: each one recognizes the directive that opens the line, binds its
-        //argument and consumes the whole line - a directive never leaves tokens behind, so the
-        //engine stops after the single rule that fired
-
-        //'.equ NAME, value' accepted in full: record the directive, the name and the value are
-        //taken from the bound tokens
         static List<Token>? DefineEqu(DirectiveMatch match, List<TK[]> pattern, List<Token> tokens, int pos)
         {
             if (pos > 0)
@@ -160,7 +125,6 @@ namespace RiscA.Core.Asm
             return tokens;
         }
 
-        //'.include "file"' accepted in full: the quoted file name goes to the include
         static List<Token>? DefineInclude(DirectiveMatch match, List<TK[]> pattern, List<Token> tokens, int pos)
         {
             if (pos > 0)
@@ -171,13 +135,10 @@ namespace RiscA.Core.Asm
             return tokens;
         }
 
-        //reached when a line opening with '.equ', '.include' or any other '.name' was not
-        //consumed in full by the patterns above: one message with the file, the line and the
-        //offending token is enough to find it, the accepted forms are named in the same breath
         static List<Token>? ReportDirectiveError(DirectiveMatch match, List<TK[]> pattern, List<Token> tokens, int pos)
         {
             if (pos > 0)
-                return null;//a directive only ever opens its line, the parser reports the rest
+                return null;
             throw new Exception(
                 $"{match.Src.Filename}:{match.Src.Pos + 1}: preprocessor: '{tokens[pos].TokenString}' is not accepted here, " +
                 "expected '.equ NAME, value' or '.include \"file\"'");
@@ -186,8 +147,7 @@ namespace RiscA.Core.Asm
         string FindIncludedFile(SrcLine from, string path)
         {
             string where = $"{from.Filename}:{from.Pos + 1}";
-            //first the directory of the file which does the include, then the compiled file
-            //directory, then the current directory - so libraries can include their own files
+            //first next to the including file, then the root directory, then the cwd
             var tried = new List<string>();
             foreach (string? dir in new string?[] { Path.GetDirectoryName(from.Filename), rootDir })
             {
@@ -206,9 +166,7 @@ namespace RiscA.Core.Asm
             throw new Exception($"{where}: .include file not found '{path}'. tried: {string.Join("; ", tried)}");
         }
 
-        //a '.equ' defines its constant the moment the line is spliced in: the value token is
-        //already evaluated by the expression rules, and a use may stand anywhere in the source
-        //because the parser substitutes constants only after this pass has read every file
+        //the parser substitutes constants after this pass, so a use may precede the definition
         void DefineConstant(SrcLine sl, Token name, Token value)
         {
             string where = $"{sl.Filename}:{sl.Pos + 1}";
