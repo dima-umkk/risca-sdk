@@ -216,7 +216,6 @@ namespace RiscA.Core.Tests.Asm
         [Theory]
         [InlineData(".equ A", "has no value")]
         [InlineData(".equ A,", "has no value")]
-        [InlineData(".equ A, 1 + 2", "must be a number")]
         [InlineData(".equ A, label0", "must be a number")]
         [InlineData(".equ 1A, 5", "must start with a letter")]
         public void BadConstantDeclarationIsReported(string declaration, string expectedMessage)
@@ -226,6 +225,25 @@ namespace RiscA.Core.Tests.Asm
 
             Action act = () => Words(main);
             act.Should().Throw<Exception>().WithMessage($"*{expectedMessage}*");
+        }
+
+        [Theory]
+        [InlineData(".equ A, 2 + 3", 5)]
+        [InlineData(".equ A, 10 - 4", 6)]
+        [InlineData(".equ A, 2 * 3", 6)]
+        [InlineData(".equ A, 10 / 2", 5)]
+        [InlineData(".equ A, (7)", 7)]
+        [InlineData(".equ A, 1 + 2 * 3", 7)]
+        public void ConstantValueMayBeANumberExpression(string declaration, int expected)
+        {
+            //the preprocessor runs the same number-expression rules as the parser, so a constant
+            //may be spelled as an expression; the engine tries the multiply/divide rule before
+            //add/subtract, so '1 + 2 * 3' reduces as 1 + (2 * 3)
+            using var src = new TempSource();
+            string main = src.Write("main.rasm", $"{declaration}\n    movi r1, A\n");
+            string reference = src.Write("reference.rasm", $"    movi r1, {expected}\n");
+
+            Code(main).Should().Be(Code(reference));
         }
 
         [Fact]
@@ -267,6 +285,67 @@ namespace RiscA.Core.Tests.Asm
 
             Action act = () => Words(main);
             act.Should().Throw<Exception>().WithMessage($"{lib}:2:*");
+        }
+
+        [Fact]
+        public void UnknownDirectiveInAnIncludedFilePointsToThatFile()
+        {
+            //the directive rules run while the file is spliced in, so the preprocessor already
+            //knows which file and line the unknown '.name' stands in
+            using var src = new TempSource();
+            string lib = src.Write("lib/defs.rasm", "    nop\n.equiv A, 1\n");
+            string main = src.Write("main.rasm", ".include \"lib/defs.rasm\"\n");
+
+            Action act = () => Words(main);
+            act.Should().Throw<Exception>().WithMessage($"{lib}:2: unknown directive '.equiv'*");
+        }
+
+        [Fact]
+        public void FuncLineIsLeftToTheParserAndAssembler()
+        {
+            //'.func' is not a preprocessor directive: the line passes through the splicing as
+            //ordinary code, the parser rule for TK.FUNC marks it, and the assembler aligns the
+            //entry with an alignment NOP in front of it
+            using var src = new TempSource();
+            string main = src.Write("main.rasm", "    movi r1, 65\n    call f\n    reti\n.func f:\n    ret\n");
+
+            var pre = new Preprocessor();
+            pre.Process(main);
+
+            //.func is not a grammar rule of the preprocessor, the line is untouched there
+            pre.Lines.Single(l => l.Line.Contains(".func")).ParsedInstruction.Should().BeNull();
+
+            var asm = new Assembler(0);
+            asm.Compile(main);
+            var funcLine = asm.Src.Single(l => l.Line.Contains(".func"));
+            funcLine.ParsedInstruction!.IsFunc.Should().BeTrue();
+            funcLine.Address.Should().Be(8);//the ';word align' NOP padded the entry up to a word boundary
+            //movi + call + reti + NOP align + ret
+            Words(main).Should().HaveCount(5);
+        }
+
+        [Fact]
+        public void DirectiveThatDoesNotOpenItsLineIsASyntaxError()
+        {
+            //the directive rules only fire on a '.name' standing at the start of the line, so a
+            //directive glued to code is left to the parser, which reports it as an unexpected token
+            using var src = new TempSource();
+            string main = src.Write("main.rasm", "    nop .equ A, 1\n");
+
+            Action act = () => Words(main);
+            act.Should().Throw<Exception>().WithMessage("*Syntax error*");
+        }
+
+        [Fact]
+        public void BrokenSyntaxIsReportedOnceByTheParser()
+        {
+            //the preprocessor tokenizes every line to look for a directive; a line the tokenizer
+            //cannot read must still be reported by the parser alone, with a single file:line prefix
+            using var src = new TempSource();
+            string main = src.Write("main.rasm", "    mov r1, \"unterminated\n");
+
+            Action act = () => Words(main);
+            act.Should().Throw<Exception>().WithMessage($"{main}:1: Syntax error*unterminated string literal");
         }
     }
 }

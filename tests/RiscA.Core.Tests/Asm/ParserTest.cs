@@ -437,6 +437,17 @@ namespace RiscA.Core.Tests.Asm
             act.Should().Throw<Exception>().WithMessage("*out of range*");
         }
 
+        //the tokenizer reads both quote styles ('.include "file"' needs the double ones), but db
+        //data stays single quoted so the source of a program keeps one spelling for strings
+        [Theory]
+        [InlineData("db \"hello\"")]
+        [InlineData("db \"A\", 'B'")]
+        public void ParseDBRejectsDoubleQuotedStringTest(string line)
+        {
+            Action act = () => Parser.ParseLine(line);
+            act.Should().Throw<Exception>().WithMessage("*must be single quoted*");
+        }
+
         [Theory]
         [InlineData("dw 0x12345678", new ushort[] { 0x5678, 0x1234 })]
         [InlineData("dw -1", new ushort[] { 0xFFFF, 0xFFFF })]

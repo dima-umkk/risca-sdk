@@ -19,7 +19,7 @@ namespace RiscA.Core.Asm
         public List<Fixup> Fixups { get; init; } = [];
         //labels of expanded 'la'/'j'/'call' whose constant pool slot the assembler has to create (6.3)
         public List<string> PoolRequests { get; init; } = [];
-        //set on the line of a '.func': marks the boundary of a pool region
+        //set on the line of a '.func': marks the boundary of a pool region, the rule ParseFuncDirective sets it
         public bool IsFunc { get; set; }
         //inline mini pool of a relaxed 'la': halfword index of its LDI inside this line (doc 6.4),
         //-1 when the line has no inline pool; the alignment NOP and the dw immediates are kept
@@ -37,7 +37,9 @@ namespace RiscA.Core.Asm
         //place of the parser where a register is named by role rather than written out
         const int StackPointer = 15;
 
-        static List<(List<TK[]>, Func<ParsedInstruction, List<TK[]>, List<Token>, int, List<Token>?>)> rules =
+        //the rule engine itself is generic (ProcessToken below), so any pass can run its own rule
+        //table over the same token stack - the preprocessor does exactly that (Preprocessor.directiveRules)
+        static List<(List<TK[]> pattern, RuleHandler<ParsedInstruction> handler)> rules =
             [
                 //Expressions
                 ([ [TK.MINUS], [TK.NUMBER] ], ExpNegative),
@@ -78,6 +80,13 @@ namespace RiscA.Core.Asm
                 ([ [TK.DB], [TK.STRING, TK.NUMBER] ], ParseDB),
                 ([ [TK.DW], [TK.NUMBER, TK.LITERAL], [TK.EOL] ], ParseDW),
 
+                //Directive rule: '.func' opens a function entry. The preprocessor deliberately
+                //leaves the line as ordinary code - the entry is the assembler's business because
+                //an alignment NOP may have to go in front of it - so the parser recognizes the
+                //directive and only marks the line (Assembler.AlignFuncs and the pool regions).
+                //The rest of the line (the entry label) is parsed by the rules above as usual.
+                ([ [TK.FUNC] ], ParseFuncDirective),
+
                 //Skip rules
                 ([ [TK.EOL] ], Skip), //empty line
             ];
@@ -92,7 +101,7 @@ namespace RiscA.Core.Asm
             List<Token> tokens = Tokenizer.tokenizeLine(line);
             SubstituteConstants(tokens, constants);
             ParsedInstruction parsedInstruction = new ParsedInstruction();
-            while (ProcessToken(tokens, parsedInstruction))
+            while (ProcessToken(tokens, parsedInstruction, rules))
                 ;
 
             if (tokens.Count > 0) //TODO: find most matched rule to clarify error
@@ -120,9 +129,17 @@ namespace RiscA.Core.Asm
             }
         }
 
-        private static bool ProcessToken(List<Token> stack, ParsedInstruction pi)
+        /// <summary>
+        /// One step of the reduction loop: try every rule of <paramref name="rules"/> against the
+        /// token stack, first by rule order then by position, and let the first one that applies
+        /// rewrite the stack. The rules are matched left to right, so a rule listed earlier wins
+        /// when several shapes fit the same tokens.
+        /// </summary>
+        /// <typeparam name="TCtx">what the rules accumulate while the line is reduced</typeparam>
+        /// <returns>false when no rule applies, which means the stack cannot be reduced further</returns>
+        public static bool ProcessToken<TCtx>(List<Token> stack, TCtx context, List<(List<TK[]> pattern, RuleHandler<TCtx> handler)> rules)
         {
-            foreach(var rule in rules)
+            foreach (var rule in rules)
             {
                 var (pattern, handler) = rule;
                 if (pattern.Count > stack.Count)
@@ -141,10 +158,10 @@ namespace RiscA.Core.Asm
                     if (ruleMatch)
                     {
                         var matchedTokens = stack.GetRange(startPos, pattern.Count);
-                        var result = handler(pi, pattern, stack, startPos);
-                        if(result == null)
+                        var result = handler(context, pattern, stack, startPos);
+                        if (result == null)
                             continue;
-                        if(Verbose.ParserMatches)
+                        if (Verbose.ParserMatches)
                             Console.WriteLine($"P: {handler.Method.Name} {string.Join(",", matchedTokens.ConvertAll(x => $"{x.TokenType}({x.TokenString})"))}");
                         stack = result;
                         return true;
@@ -157,6 +174,16 @@ namespace RiscA.Core.Asm
         static List<Token>? Skip(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
         {
             tokens.RemoveRange(pos, rule.Count);
+            return tokens;
+        }
+
+        //[TK.FUNC]
+        static List<Token>? ParseFuncDirective(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
+        {
+            if (pos > 0)
+                return null;//a directive only ever opens its line
+            parsedInstruction.IsFunc = true;
+            tokens.RemoveRange(pos, 1);
             return tokens;
         }
 
@@ -512,6 +539,10 @@ namespace RiscA.Core.Asm
                 }
                 if (tokens[i].TokenType == TK.STRING)
                 {
+                    //the tokenizer accepts both quote styles ('...' for db data, "..." for the
+                    //argument of '.include'), but db data is spelled with single quotes only
+                    if (tokens[i].TokenString[0] == '"')
+                        throw new Exception($"Syntax error {tokens[i].TokenPos}: string in db must be single quoted, got '{tokens[i].TokenString}'");
                     foreach (char c in tokens[i].strValue!)
                         bytes.Add((byte)c);
                     i++;

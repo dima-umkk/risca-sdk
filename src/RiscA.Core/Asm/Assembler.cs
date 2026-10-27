@@ -58,29 +58,20 @@ namespace RiscA.Core.Asm
                         src[i].Address = curAddress;
                         continue;
                     }
-                    if(src[i].Line.Contains(".func"))
-                    {//function declaration
-                        if((curAddress & 0b0000_0011) != 0)
-                        {//make work aligned
-                            var nops = new SrcLine(";word align", i, src[i].Filename);
-                            nops.ParsedInstruction = new ParsedInstruction();
-                            nops.ParsedInstruction.Instructions.Add(new Instruction(0));
-                            nops.Address = curAddress;
-                            curAddress += 2;
-                            src.Insert(i, nops);
-                            //the nop line is skipped by the loop, the '.func' line itself comes next
-                            continue;
-                        }
-                        src[i].Line = src[i].Line.Replace(".func", "");
-                        var fpi = src[i].ParsedInstruction = Parser.ParseLine(src[i].Line, pre.Constants);
-                        fpi.IsFunc = true;
-                        src[i].Address = curAddress;
-                        curAddress += fpi.Instructions.Count * 2;
-                        if (fpi.Label is not null)
-                            labelMap[fpi.Label] = src[i];
+                    var pi = Parser.ParseLine(src[i].Line, pre.Constants);
+                    if (pi.IsFunc && (curAddress & 0b0000_0011) != 0)
+                    {//a function entry must start on a word boundary: put an alignment NOP in
+                     //front of it; the nop line is skipped by the loop, the '.func' line itself
+                     //comes next - unparsed, so it goes through this block once more, now aligned
+                        var nops = new SrcLine(";word align", i, src[i].Filename);
+                        nops.ParsedInstruction = new ParsedInstruction();
+                        nops.ParsedInstruction.Instructions.Add(new Instruction(0));
+                        nops.Address = curAddress;
+                        curAddress += 2;
+                        src.Insert(i, nops);
                         continue;
                     }
-                    var pi = src[i].ParsedInstruction = Parser.ParseLine(src[i].Line, pre.Constants);
+                    src[i].ParsedInstruction = pi;
                     src[i].Address = curAddress;
                     curAddress += pi.Instructions.Count * 2;
                     if (pi.Label is not null)

@@ -51,13 +51,18 @@
 - **`Instruction` struct** in `ISA/Instruction.cs` — immutable `readonly struct` with `(mask, shift)` tuple fields and `with*()` builder methods.
 - **Assembler CLI** (`src/RiscA.Assembler/Program.cs`): `rasm -i <file.rasm>` plus optional `-v` (verbose), `-vp` (parser match debug), `-vi` (instruction dump). Sample: `samples/base.test.rasm`.
 - **Assembler directives** (`src/RiscA.Core/Asm/Preprocessor.cs`, runs before the two assembler passes):
-  `.func name:` (entry, may insert a `NOP` for word alignment), `.equ NAME, value` (integer constant in
-  decimal/`0x`/`0b`, substituted into any number position), `.include "file"` (spliced in, resolved relative
+  `.equ NAME, value` (integer constant in decimal/`0x`/`0b` or a number expression, substituted into any
+  number position) and `.include "file"` (spliced in, resolved relative
   to the including file first, each file included once, cycles ignored). Constants are collected in a second
   pass over the spliced lines, so a library included at the end of a file still provides its constants to the
   code above it (the image starts with the program body, so libraries go last — see `samples/uart.echo.rasm` and
-  `samples/lib/uart.rasm`). Directive names are matched at string level, because the tokenizer cannot read `.name`.
-  Directive syntax and caveats are documented in `doc/README.md` ("Директивы ассемблера").
+  `samples/lib/uart.rasm`). Directive names are tokenized by the tokenizer (`TK.EQU`/`TK.INCLUDE`,
+  any other `.name` → `TK.DOTNAME`; `TK.FUNC` is a parser token, not a preprocessor one) and `Preprocessor.directiveRules`
+  describes the directive grammar in full — expression rules plus complete argument patterns — through the parser's
+  rule engine (`Parser.ProcessToken<TCtx>`, shared via `RuleHandler<TCtx>` in `Asm/Rule.cs`); a line the grammar does
+  not accept is ordinary code, an unknown `.name` errors there. `.func` is **not** a preprocessor directive:
+  the line stays ordinary code, the parser rule `ParseFuncDirective` marks it (`ParsedInstruction.IsFunc`) and the
+  assembler owns the entry and its `NOP` word alignment. Directive syntax and caveats are documented in `doc/README.md` ("Директивы ассемблера").
 - **Assembler design record:** `doc/assembler-architecture.md` — the assembler pipeline
   (Preprocessor → Parser rule engine → addressing + a label-resolution/relaxation loop to a
   fixed point) and the implemented milestone **A1**: pseudo-ops `li/la/j` expanded by parser
