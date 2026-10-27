@@ -16,6 +16,11 @@ namespace RiscA.Core.Asm
         public List<string> PoolRequests { get; init; } = [];
         //set on the line of a '.func': marks the boundary of a pool region, the rule ParseFuncDirective sets it
         public bool IsFunc { get; set; }
+        //set on the line of a '.end': closes the function region (doc/assembler-architecture.md, 7.2)
+        public bool IsEnd { get; set; }
+        //parameter names of '.func name(a, b)': each one is a virtual name, so the region becomes
+        //named and the parameters are its first names, precolored to r0..r5 by position (doc 7.1)
+        public List<string> FuncParams { get; init; } = [];
         //inline mini pool of a relaxed 'la': halfword index of its LDI inside this line (doc 6.4),
         //-1 when the line has no inline pool; the alignment NOP and the dw immediates are kept
         //up to date by the relaxation loop
@@ -31,6 +36,9 @@ namespace RiscA.Core.Asm
         //R15 is the stack pointer of the ABI (doc/RiscA.MD, "ABI"); push/pop are the only
         //place of the parser where a register is named by role rather than written out
         const int StackPointer = 15;
+        //the roles 'ret x' names by position: the result is r0, the return jumps to the link (doc 7.3)
+        const int ResultRegister = 0;
+        const int LinkRegister = 14;
 
         //the rule engine itself is generic (ProcessToken below), so any pass can run its own rule
         //table over the same token stack - the preprocessor does exactly that (Preprocessor.directiveRules)
@@ -64,6 +72,9 @@ namespace RiscA.Core.Asm
                 ([ [TK.CALL, TK.JR], [TK.NUMBER, TK.LITERAL], [TK.EOL] ], ParseCallJr),
                 ([ [TK.CALL, TK.JMP, TK.INT], [TK.REG], [TK.EOL] ], ParseCallJmpInt),
                 ([ [TK.RET, TK.RETI], [TK.EOL] ], ParseRet),
+                //'ret x' (doc/assembler-architecture.md, 7.3): the value goes to r0 and the
+                //return follows; the expansion itself is the handler's ParseRetReg
+                ([ [TK.RET], [TK.REG], [TK.EOL] ], ParseRetReg),
                 ([ [TK.MOV], [TK.REG], [TK.COMMA], [TK.EPC], [TK.EOL] ], ParseEPC),
                 ([ [TK.MOV], [TK.EPC], [TK.COMMA], [TK.REG], [TK.EOL] ], ParseEPC),
                 ([ [TK.NOP], [TK.EOL] ], ParseNop),
@@ -77,6 +88,11 @@ namespace RiscA.Core.Asm
                 //directive and only marks the line (Assembler.AlignFuncs and the pool regions).
                 //The rest of the line (the entry label) is parsed by the rules above as usual.
                 ([ [TK.FUNC] ], ParseFuncDirective),
+                //'.func name(a, b)': the fixed pattern only claims '(', the handler reads the
+                //whole parameter list; the name in front of '(' becomes the entry label
+                ([ [TK.LITERAL], [TK.LPAREN], [TK.LITERAL, TK.RPAREN] ], ParseFuncParams),
+                //'.end' closes the region; like '.func' it is ordinary code until it is parsed
+                ([ [TK.END] ], ParseEndDirective),
 
                 //Skip rules
                 ([ [TK.EOL] ], Expressions.Skip<ParsedInstruction>), //empty line
@@ -168,6 +184,40 @@ namespace RiscA.Core.Asm
             if (pos > 0)
                 return null;//a directive only ever opens its line
             parsedInstruction.IsFunc = true;
+            tokens.RemoveRange(pos, 1);
+            return tokens;
+        }
+
+        //[TK.LITERAL], [TK.LPAREN], [TK.LITERAL, TK.RPAREN] ... ')': the pattern only claims
+        //'(', the handler reads the parameter list to its closing ')'
+        static List<Token>? ParseFuncParams(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
+        {
+            if (!parsedInstruction.IsFunc || parsedInstruction.FuncParams.Count > 0)
+                return null;//parameters belong to the '.func name' on this very line
+            int end = pos + 2;
+            var names = new List<string>();
+            while (end < tokens.Count && tokens[end].TokenType == TK.LITERAL)
+            {
+                names.Add(tokens[end].TokenString);
+                end++;
+                if (end < tokens.Count && tokens[end].TokenType == TK.COMMA)
+                    end++;
+            }
+            if (end >= tokens.Count || tokens[end].TokenType != TK.RPAREN)
+                return null;//a malformed list is left to the Regions check, which names the mistake
+            //the name in front of '(' is the entry label: 'call mulsum' resolves through it
+            parsedInstruction.Label = tokens[pos].TokenString;
+            parsedInstruction.FuncParams.AddRange(names);
+            tokens.RemoveRange(pos, end + 1 - pos);
+            return tokens;
+        }
+
+        //[TK.END]
+        static List<Token>? ParseEndDirective(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
+        {
+            if (pos > 0)
+                return null;//a directive only ever opens its line
+            parsedInstruction.IsEnd = true;
             tokens.RemoveRange(pos, 1);
             return tokens;
         }
@@ -437,6 +487,27 @@ namespace RiscA.Core.Asm
                 .withRd(tokens[pos].TokenType == TK.RETI ? 0 : 14); //R14 link register
             parsedInstruction.Instructions.Add(i);
             tokens.RemoveRange(pos, 2);
+            return tokens;
+        }
+
+        //[TK.RET], [TK.REG], [TK.EOL]
+        static List<Token>? ParseRetReg(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
+        {
+            //'ret x' is the exit of doc/assembler-architecture.md 7.3: the value moves to r0,
+            //then the plain return runs; inside a named region the return will jump to the
+            //region's single epilogue instead (A2.2), in a physical region it is RET R14 as usual
+            var move = new Instruction(0)
+                .withOpCode(OpCode.ALU_REG_REG)
+                .withFunc4((int)ALUFunc.MOV)
+                .withRd(ResultRegister)
+                .withRs(tokens[pos + 1].intValue);
+            var jumpLink = new Instruction(0)
+                .withOpCode(OpCode.CALL_JMP_RET)
+                .withFunc2((int)CallJmpRetFunc.RET)
+                .withRd(LinkRegister);
+            parsedInstruction.Instructions.Add(move);
+            parsedInstruction.Instructions.Add(jumpLink);
+            tokens.RemoveRange(pos, 3);
             return tokens;
         }
 

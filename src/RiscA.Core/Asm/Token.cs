@@ -63,12 +63,13 @@ namespace RiscA.Core.Asm
 
         //directive tokens: the tokenizer reads '.name' so that a directive is matched by the same
         //token patterns the parser uses for instructions. DOTNAME is any '.word' that is not one
-        //of the known directives below; FUNC opens a function entry and is a rule of the parser,
-        //not of the preprocessor - the assembler owns the entry and its alignment
+        //of the known directives below; FUNC opens a function entry and END closes it, both are
+        //rules of the parser, not of the preprocessor - the assembler owns the entries
         DOTNAME,
         EQU,
         INCLUDE,
         FUNC,
+        END,
     }
 
     public record struct Token(TK TokenType, string TokenString, int TokenPos, int intValue = 0, string? strValue = null);
@@ -146,12 +147,13 @@ namespace RiscA.Core.Asm
         //preprocessor reports instead of silently treating it as code
         //the '.equ'/'.include' spellings go here as written; the Preprocessor recognizes the
         //resulting TK.EQU/TK.INCLUDE tokens by their type, not by name;
-        //'.func' is not a preprocessor directive, it stays a literal here
+        //'.func'/'.end' are not preprocessor directives, they are function region markers
         static Dictionary<string, TK> directiveToTokenType = new()
         {
             [".equ"] = TK.EQU,
             [".include"] = TK.INCLUDE,
             [".func"] = TK.FUNC,
+            [".end"] = TK.END,
         };
 
         private static bool IsHexDigit(char c) =>

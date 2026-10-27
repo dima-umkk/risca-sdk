@@ -67,7 +67,7 @@
   library included at the end of a file still provides its constants to the
   code above it (the image starts with the program body, so libraries go last — see `samples/uart.echo.rasm` and
   `samples/lib/uart.rasm`). Directive names are tokenized by the tokenizer (`TK.EQU`/`TK.INCLUDE`,
-  any other `.name` → `TK.DOTNAME`; `TK.FUNC` is a parser token, not a preprocessor one) and `Preprocessor.directiveRules`
+  any other `.name` → `TK.DOTNAME`; `TK.FUNC`/`TK.END` are parser tokens, not preprocessor ones) and `Preprocessor.directiveRules`
   describes the directive grammar in full — expression rules plus complete argument patterns — through the parser's
   rule engine (`Parser.ProcessToken<TCtx>`, shared via `RuleHandler<TCtx>` in `Asm/Rule.cs`); a line the grammar does
   not accept is ordinary code, an unknown `.name` errors there. `.func` is **not** a preprocessor directive:
@@ -85,7 +85,13 @@
   stays in a `dw` entry, which later doubles as the relocation table for load-at-any-address).
   Acceptance: all tests green, `samples/` images byte-identical to pre-A1, far jumps/calls
   assemble and execute in the emulator (`RunTest` assembles with `origin` = load address).
-  The accepted **A2** plan (section 7, not implemented yet): named frame slots with generated
+  The accepted **A2** plan (section 7). **A2.1 is implemented**: `.end` token and rule (`TK.END`,
+  `ParsedInstruction.IsEnd`), `.func name(a, b)` parameter parsing (`ParseFuncParams`, `FuncParams`;
+  the name becomes the entry label), `ret x` expansion (`ParseRetReg`: `mov r0, x` + `RET R14`), and
+  `Asm/Regions.cs` — a pre-parse region scan (boundaries `.func` … `.end`/next `.func`/EOF, every 7.2
+  prohibition of a named region reported by name, then named regions gated with 'virtual names are
+  not assembled yet'); physical-only sources assemble byte-identically. The rest of A2 is not
+  implemented: named frame slots with generated
   prologue/epilogue (`.func name(a, b)` / `.end` — save only the R8–R13 actually clobbered,
   none for a leaf), `call f(a, b)` argument-list sugar (permutation via r6/r7; >6 args on the
   stack per the fixed ABI in `doc/instruction-set.md`), and virtual-name register allocation in
