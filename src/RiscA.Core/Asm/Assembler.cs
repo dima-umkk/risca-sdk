@@ -40,6 +40,10 @@ namespace RiscA.Core.Asm
             var pre = new Preprocessor();
             pre.Process(filename);
 
+            //the region check (doc/assembler-architecture.md, 7.2) before any parsing: named
+            //regions must be recognized here, the parser would only see their names as syntax errors
+            Regions.Check(pre.Lines, pre.Constants);
+
             src.Clear();
             src.AddRange(pre.Lines);
             labelMap.Clear();

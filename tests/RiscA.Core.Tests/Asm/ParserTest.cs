@@ -627,5 +627,62 @@ namespace RiscA.Core.Tests.Asm
             Action act = () => Parser.ParseLine("push: nop");
             act.Should().Throw<Exception>().WithMessage("*Syntax error*");
         }
+
+        [Fact]
+        public void ParserRetRegTest()
+        {
+            //'ret x' (doc/assembler-architecture.md, 7.3): mov r0, x and then the plain return
+            var pi = Parser.ParseLine("ret r3");
+
+            pi.Instructions.Should().HaveCount(2);
+            pi.Instructions[0].OpCode.Should().Be(OpCode.ALU_REG_REG);
+            pi.Instructions[0].Func4.Should().Be((int)ALUFunc.MOV);
+            pi.Instructions[0].Rd.Should().Be(0);
+            pi.Instructions[0].Rs.Should().Be(3);
+            pi.Instructions[1].OpCode.Should().Be(OpCode.CALL_JMP_RET);
+            pi.Instructions[1].Func2.Should().Be((int)CallJmpRetFunc.RET);
+            pi.Instructions[1].Rd.Should().Be(14);
+            pi.Fixups.Should().BeEmpty();
+        }
+
+        [Fact]
+        public void RetOfALabelOrANumberIsStillAnError()
+        {
+            Action act = () => Parser.ParseLine("ret done");
+            act.Should().Throw<Exception>().WithMessage("*Syntax error*");
+
+            act = () => Parser.ParseLine("ret 4");
+            act.Should().Throw<Exception>().WithMessage("*Syntax error*");
+        }
+
+        [Fact]
+        public void FuncDirectiveStillParsesWithoutParameters()
+        {
+            var pi = Parser.ParseLine(".func uart_puts:");
+
+            pi.IsFunc.Should().BeTrue();
+            pi.Label.Should().Be("uart_puts");
+            pi.FuncParams.Should().BeEmpty();
+        }
+
+        [Fact]
+        public void FuncParametersBecomeTheEntryLabelAndTheNameList()
+        {
+            //'.func name(a, b)' carries its name as the entry label: 'call name' resolves through it
+            var pi = Parser.ParseLine(".func mulsum(a, b)");
+
+            pi.IsFunc.Should().BeTrue();
+            pi.Label.Should().Be("mulsum");
+            pi.FuncParams.Should().Equal("a", "b");
+        }
+
+        [Fact]
+        public void EndClosesTheRegionWithoutProducingCode()
+        {
+            var pi = Parser.ParseLine(".end");
+
+            pi.IsEnd.Should().BeTrue();
+            pi.Instructions.Should().BeEmpty();
+        }
     }
 }
