@@ -61,14 +61,17 @@
 - **Assembler design record:** `doc/assembler-architecture.md` — the assembler pipeline
   (Preprocessor → Parser rule engine → addressing + a label-resolution/relaxation loop to a
   fixed point) and the implemented milestone **A1**: pseudo-ops `li/la/j` expanded by parser
-  rules (`mv` deliberately not added — `MOV` is a real instruction), a `List<Fixup { Slot; Label; FixupKind }>` (Branch/Call/Jr/PoolRef/DataAddr; mutable class, also `Target` = pool slot, `Reg` for `j rN`) on `ParsedInstruction` replacing `RefLabel`, per-function constant pools (`dw label ;pool`, marked `IsPool`, keyed by region+label), and the relaxation loop (invert-and-JR
+  rules (`mv` deliberately not added — `MOV` is a real instruction), plus the stack pseudo-ops
+  `push rN`/`pop rN` (the ABI macro of `doc/RiscA.MD` verbatim: `SUB R15,4`+`STW [R15+0],rN` /
+  `LDW rN,[R15+0]`+`ADD R15,4`, order fixed so a pair balances R15; 2 halfwords each, no fixups,
+  no scratch, `push r15`/`pop r15` are errors), a `List<Fixup { Slot; Label; FixupKind }>` (Branch/Call/Jr/PoolRef/DataAddr; mutable class, also `Target` = pool slot, `Reg` for `j rN`) on `ParsedInstruction` replacing `RefLabel`, per-function constant pools (`dw label ;pool`, marked `IsPool`, keyed by region+label), and the relaxation loop (invert-and-JR
   for far branches, `la r7`+`CALL r7` for far calls; for an unreachable pool slot `la` expands
   to an inline mini-pool — `ldi` + `jr` over the data + `dw label` — so every absolute address
   stays in a `dw` entry, which later doubles as the relocation table for load-at-any-address).
   Acceptance: all tests green, `samples/` images byte-identical to pre-A1, far jumps/calls
   assemble and execute in the emulator (`RunTest` assembles with `origin` = load address).
   The accepted **A2** plan (section 7, not implemented yet): named frame slots with generated
-  prologue/epilogue (`.func name(a, b)` / `.endfunc` — save only the R8–R13 actually clobbered,
+  prologue/epilogue (`.func name(a, b)` / `.end` — save only the R8–R13 actually clobbered,
   none for a leaf), `call f(a, b)` argument-list sugar (permutation via r6/r7; >6 args on the
   stack per the fixed ABI in `doc/instruction-set.md`), and virtual-name register allocation in
   `rasm` (linear-scan over the 16 physical registers, single-def SSA liveness, spill to auto
@@ -76,8 +79,10 @@
   allocation lives in the assembler, not in the compiler (`rcc` stays a near-transliterator of
   IL). New mechanisms stay silent for sources that use only physical registers. Inside a
   named region physical registers are pinned point-uses only: `r14`/`r15`/`r7` are
-  assembly-time errors there, the return value is written as `.endfunc x` (the epilogue
-  moves `x` to `r0`), and the register pool for names is `r0..r6` (caller-saved class)
+  assembly-time errors there, every exit is written as `ret x` (expands to `mov r0, x` plus a
+  jump to the region's single epilogue; `ret` with no operand skips the `mov`), the epilogue is
+  emitted once per region and must never restore into `r0` (it already holds the exit value),
+  and the register pool for names is `r0..r6` (caller-saved class)
   plus `r8..r13` (intervals live across calls) — never `r7/r14/r15`.
 - **Machine design record:** `doc/emulator-architecture.md` — the agreed architecture of the emulator,
   debugger and compiler (one flat address space — every address reachable both from the fetch

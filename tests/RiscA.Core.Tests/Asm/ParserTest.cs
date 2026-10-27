@@ -549,5 +549,72 @@ namespace RiscA.Core.Tests.Asm
             Action act = () => Parser.ParseLine("j 20000");
             act.Should().Throw<Exception>().WithMessage("*-1024 .. 1023*");
         }
+
+        [Theory]
+        //push rN is the PUSH macro of doc/RiscA.MD ("Stack") expanded verbatim
+        [InlineData("push r3", 3)]
+        [InlineData("push r0", 0)]
+        [InlineData("push r14", 14)]
+        public void ParserPushTest(string line, int rd)
+        {
+            var pi = Parser.ParseLine(line);
+
+            pi.Instructions.Should().HaveCount(2);
+            //SUB R15, 4 first, the slot exists before the store
+            pi.Instructions[0].OpCode.Should().Be(OpCode.ALU_REG_IMM);
+            pi.Instructions[0].Func2.Should().Be((int)ALUImmFunc.SUB);
+            pi.Instructions[0].Rd.Should().Be(15);
+            pi.Instructions[0].Imm7.Should().Be(4);
+            pi.Instructions[1].OpCode.Should().Be(OpCode.ST_LD);
+            pi.Instructions[1].Func21.Should().Be((int)LdStFunc.ST);
+            pi.Instructions[1].Func22.Should().Be((int)LdStBWFunc.W);
+            pi.Instructions[1].Rs.Should().Be(15);
+            pi.Instructions[1].Imm3.Should().Be(0);
+            pi.Instructions[1].Rd.Should().Be(rd);
+            pi.Fixups.Should().BeEmpty();
+            pi.PoolRequests.Should().BeEmpty();
+        }
+
+        [Fact]
+        public void ParserPopTest()
+        {
+            var pi = Parser.ParseLine("pop r4");
+
+            pi.Instructions.Should().HaveCount(2);
+            //LDW rN, [R15+0] first and only then ADD R15, 4: the exact reverse of push,
+            //which is what makes a push/pop pair return R15 to where it started
+            pi.Instructions[0].OpCode.Should().Be(OpCode.ST_LD);
+            pi.Instructions[0].Func21.Should().Be((int)LdStFunc.LD);
+            pi.Instructions[0].Func22.Should().Be((int)LdStBWFunc.W);
+            pi.Instructions[0].Rd.Should().Be(4);
+            pi.Instructions[0].Rs.Should().Be(15);
+            pi.Instructions[0].Imm3.Should().Be(0);
+            pi.Instructions[1].OpCode.Should().Be(OpCode.ALU_REG_IMM);
+            pi.Instructions[1].Func2.Should().Be((int)ALUImmFunc.ADD);
+            pi.Instructions[1].Rd.Should().Be(15);
+            pi.Instructions[1].Imm7.Should().Be(4);
+            pi.Fixups.Should().BeEmpty();
+        }
+
+        [Fact]
+        public void PushOrPopOfTheStackPointerIsAnError()
+        {
+            //r15 is the pointer itself: moving it and then storing through it is never intended
+            Action act = () => Parser.ParseLine("push r15");
+            act.Should().Throw<Exception>().WithMessage("*stack pointer cannot be pushed or popped*");
+
+            act = () => Parser.ParseLine("pop r15");
+            act.Should().Throw<Exception>().WithMessage("*stack pointer cannot be pushed or popped*");
+        }
+
+        [Fact]
+        public void PushAndPopAreReservedWords()
+        {
+            Tokenizer.IsReserved("push").Should().BeTrue();
+            Tokenizer.IsReserved("POP").Should().BeTrue();
+            //a mnemonic is not a LITERAL, so it cannot become a label
+            Action act = () => Parser.ParseLine("push: nop");
+            act.Should().Throw<Exception>().WithMessage("*Syntax error*");
+        }
     }
 }

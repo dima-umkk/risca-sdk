@@ -53,6 +53,8 @@ namespace RiscA.Core.Asm
         LI,
         LA,
         J,
+        PUSH,
+        POP,
         INT,
         RETI,
         EPC,
@@ -120,6 +122,9 @@ namespace RiscA.Core.Asm
             {"li", TK.LI },
             {"la", TK.LA },
             {"j", TK.J },
+
+            {"push", TK.PUSH },
+            {"pop", TK.POP },
 
             {"int", TK.INT },
             {"reti", TK.RETI },
