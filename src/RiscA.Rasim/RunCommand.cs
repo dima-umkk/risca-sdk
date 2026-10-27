@@ -106,7 +106,7 @@ namespace RiscA.Rasim
                 return Cli.Exit.Usage;
             }
 
-            var options = new BusOptions
+            var options = new Bus.Options
             {
                 //the machine starts where the image starts, unless --reset asks for another vector
                 ResetVector = reset ?? where,
@@ -134,7 +134,7 @@ namespace RiscA.Rasim
             {
                 loaded = ProgramImage.Load(bus, where, image);
             }
-            catch (BusFault fault)
+            catch (Bus.Fault fault)
             {
                 Cli.Error(fault.Message);
                 consoleInput.Dispose();

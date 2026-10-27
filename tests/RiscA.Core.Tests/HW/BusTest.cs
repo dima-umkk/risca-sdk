@@ -105,8 +105,8 @@ public class BusTest
         var act = () => bus.ReadWord(0x0000_0408);
 
         //the device does not answer, so no device covers the address at all
-        act.Should().Throw<BusFault>()
-            .Which.Kind.Should().Be(BusFaultKind.Unmapped);
+        act.Should().Throw<Bus.Fault>()
+            .Which.Kind.Should().Be(Bus.FaultKind.Unmapped);
     }
 
     [Fact]
@@ -118,8 +118,8 @@ public class BusTest
 
         var act = () => bus.ReadWord(0x0000_0502);
 
-        act.Should().Throw<BusFault>()
-            .Which.Kind.Should().Be(BusFaultKind.Unaligned);
+        act.Should().Throw<Bus.Fault>()
+            .Which.Kind.Should().Be(Bus.FaultKind.Unaligned);
     }
 
     [Theory]
@@ -131,8 +131,8 @@ public class BusTest
 
         var act = () => bus.ReadWord(address);
 
-        act.Should().Throw<BusFault>()
-            .Which.Kind.Should().Be(BusFaultKind.Unmapped);
+        act.Should().Throw<Bus.Fault>()
+            .Which.Kind.Should().Be(Bus.FaultKind.Unmapped);
     }
 
     [Fact]
@@ -142,7 +142,7 @@ public class BusTest
 
         var act = () => bus.WriteWord(Ram + 4094, 1);
 
-        act.Should().Throw<BusFault>()
+        act.Should().Throw<Bus.Fault>()
             .WithMessage("*unmapped 4 byte write at 0x00010FFE*no device answers there*");
     }
 
@@ -180,10 +180,10 @@ public class BusTest
         bus.ReadWord(0x0000_0200).Should().Be(0x0087_2A02);
 
         var act = () => bus.WriteWord(0x0000_0200, 0);
-        act.Should().Throw<BusFault>().Which.Kind.Should().Be(BusFaultKind.ReadOnly);
+        act.Should().Throw<Bus.Fault>().Which.Kind.Should().Be(Bus.FaultKind.ReadOnly);
 
         act = () => bus.WriteByte(0x0000_0201, 0);
-        act.Should().Throw<BusFault>().WithMessage("*writing to rom 'rom'*");
+        act.Should().Throw<Bus.Fault>().WithMessage("*writing to rom 'rom'*");
     }
 
     [Theory]
@@ -210,7 +210,7 @@ public class BusTest
 
         var act = () => ProgramImage.Load(bus, Ram + 62, new byte[8]);
 
-        act.Should().Throw<BusFault>().WithMessage("*unmapped 8 byte*");
+        act.Should().Throw<Bus.Fault>().WithMessage("*unmapped 8 byte*");
         bus.ReadWord(Ram + 60).Should().Be(0x11111111);
     }
 
@@ -218,7 +218,7 @@ public class BusTest
     public void Code_is_fetched_from_a_rom_as_well_as_from_ram()
     {
         //movi r0, 0x2A ; reti
-        var bus = new Bus(new BusOptions { ResetVector = 0x0000_0000 });
+        var bus = new Bus(new Bus.Options { ResetVector = 0x0000_0000 });
         bus.AddDevice(new Rom("rom", 0x0000_0000, [0x02, 0x2A, 0x87, 0x00]));
         var cpu = new CPU(bus);
 

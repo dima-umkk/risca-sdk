@@ -7,19 +7,46 @@ namespace RiscA.Core.HW
     //The flat address space of the model: fetch and loads/stores share one map, self modifying code works.
     public sealed class Bus
     {
-        private readonly List<IDevice> _devices = [];
+        //How the model machine is wired (doc/emulator-architecture.md, §4); the devices themselves are added to the Bus.
+        public sealed class Options
+        {
+            //null means "the start of the first ram on the bus"
+            public uint? ResetVector { get; init; }
 
-        public BusOptions Options { get; }
+            //instead of halting, an unmapped read returns 0 and an unmapped write is dropped
+            public bool Permissive { get; init; }
+        }
+
+        //Why an access could not be completed on the flat bus.
+        public enum FaultKind
+        {
+            //no device answers at this address
+            Unmapped,
+            //a 32 bit access to a device register that is not aligned to 4 bytes
+            Unaligned,
+            //a write to a read only device
+            ReadOnly,
+        }
+
+        public class Fault(uint address, FaultKind kind, string message) : Exception(message)
+        {
+            public uint Address { get; } = address;
+            public FaultKind Kind { get; } = kind;
+        }
+
+        private readonly List<IDevice> _devices = [];
+        private readonly Options _options;
+
         public IReadOnlyList<IDevice> Devices => _devices;
 
         //the cpu starts at the first ram unless asked otherwise
-        public uint ResetVector => Options.ResetVector
+        public uint ResetVector => _options.ResetVector
             ?? _devices.OfType<Ram>().FirstOrDefault()?.Base
-            ?? throw new InvalidOperationException("the bus has no ram and no BusOptions.ResetVector, the cpu would have nowhere to start");
+            ?? throw new InvalidOperationException("the bus has no ram and no Bus.Options.ResetVector, the cpu would have nowhere to start");
 
-        public Bus(BusOptions? options = null)
+        public Bus(Options? options = null)
         {
-            Options = options ?? new BusOptions();
+            _options = options ?? new Options();
         }
 
         //everything on the bus is a device: ram and rom included
@@ -42,15 +69,15 @@ namespace RiscA.Core.HW
             var device = Find(address, length);
             if (device is not null)
                 return device;
-            if (Options.Permissive)
+            if (_options.Permissive)
                 return null;
-            throw new BusFault(address, BusFaultKind.Unmapped,
+            throw new Fault(address, FaultKind.Unmapped,
                 $"unmapped {length} byte {(write ? "write" : "read")} at 0x{address:X8}, no device answers there");
         }
 
         //a load must fit in one mapped range so nothing is written half way
         public void CheckRange(uint address, int length) => _ = Resolve(address, length, false)
-            ?? throw new BusFault(address, BusFaultKind.Unmapped, $"cannot load {length} bytes at 0x{address:X8}, the range is not mapped");
+            ?? throw new Fault(address, FaultKind.Unmapped, $"cannot load {length} bytes at 0x{address:X8}, the range is not mapped");
 
         public string RegionName(uint address) => Find(address, 1)?.Name ?? "unmapped";
 

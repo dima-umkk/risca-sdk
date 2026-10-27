@@ -37,7 +37,7 @@ internal class FakeDevice : IDevice
     private int Offset(uint address, int length)
     {
         if (!Contains(address, length))
-            throw new BusFault(address, BusFaultKind.Unmapped,
+            throw new Bus.Fault(address, Bus.FaultKind.Unmapped,
                 $"{length} byte access at 0x{address:X8} is outside the registers of {Name} (0x{Base:X8}..0x{Base + (uint)Size - 1:X8})");
         return (int)(address - Base);
     }
@@ -46,7 +46,7 @@ internal class FakeDevice : IDevice
     {
         int off = Offset(address, 4);
         if (off % 4 != 0)
-            throw new BusFault(address, BusFaultKind.Unaligned,
+            throw new Bus.Fault(address, Bus.FaultKind.Unaligned,
                 $"word access at 0x{address:X8} is not aligned to a register of {Name}");
         return off;
     }
@@ -111,7 +111,7 @@ internal static class Harness
     public const uint Origin = Ram.DefaultBase;
 
     public static Bus NewBus(int ramSize = 4096, bool permissive = false)
-        => new Bus(new BusOptions { Permissive = permissive }).AddDevice(new Ram("ram", Ram.DefaultBase, ramSize));
+        => new Bus(new Bus.Options { Permissive = permissive }).AddDevice(new Ram("ram", Ram.DefaultBase, ramSize));
 
     //a machine with the code loaded where the CPU starts, which is the reset vector of the model
     public static CPU Cpu(params Instruction[] code)

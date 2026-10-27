@@ -49,7 +49,7 @@ namespace RiscA.Core.HW
         private int Offset(uint address, int length)
         {
             if (!Contains(address, length))
-                throw new BusFault(address, BusFaultKind.Unmapped,
+                throw new Bus.Fault(address, Bus.FaultKind.Unmapped,
                     $"{length} byte access at 0x{address:X8} is outside the registers of {Name} (0x{Base:X8}..0x{Base + RegisterBytes - 1:X8})");
             return (int)(address - Base);
         }
@@ -70,7 +70,7 @@ namespace RiscA.Core.HW
         {
             int off = Offset(address, 4);
             if (off % 4 != 0)
-                throw new BusFault(address, BusFaultKind.Unaligned,
+                throw new Bus.Fault(address, Bus.FaultKind.Unaligned,
                     $"word access at 0x{address:X8} is not aligned to a register of {Name}");
             switch (off / 4)
             {
@@ -92,7 +92,7 @@ namespace RiscA.Core.HW
         {
             int off = Offset(address, 4);
             if (off % 4 != 0)
-                throw new BusFault(address, BusFaultKind.Unaligned,
+                throw new Bus.Fault(address, Bus.FaultKind.Unaligned,
                     $"word access at 0x{address:X8} is not aligned to a register of {Name}");
             switch (off / 4)
             {

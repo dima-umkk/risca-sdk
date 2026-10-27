@@ -30,13 +30,13 @@ namespace RiscA.Core.HW
         private int Index(uint address, int length)
         {
             if (!Contains(address, length))
-                throw new BusFault(address, BusFaultKind.Unmapped,
+                throw new Bus.Fault(address, Bus.FaultKind.Unmapped,
                     $"{length} byte access at 0x{address:X8} is outside {Name} (0x{Base:X8}..0x{Base + (uint)Size - 1:X8})");
             return (int)(address - Base);
         }
 
-        private BusFault Denied(uint address)
-            => new(address, BusFaultKind.ReadOnly, $"writing to rom '{Name}' at 0x{address:X8} is not allowed");
+        private Bus.Fault Denied(uint address)
+            => new(address, Bus.FaultKind.ReadOnly, $"writing to rom '{Name}' at 0x{address:X8} is not allowed");
 
         public byte ReadByte(uint address) => _data[Index(address, 1)];
 
