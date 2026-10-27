@@ -4,8 +4,7 @@ using System.IO;
 
 namespace RiscA.Rasim
 {
-
-    //rasim run: load an image, attach the default devices and run until stop, fault or limit.
+    //rasim: load an image, attach the default devices, then run to the end or stop at the debugger prompt.
     internal static class RunCommand
     {
         public static int Execute(string[] args)
@@ -18,10 +17,11 @@ namespace RiscA.Rasim
             ulong limit = Cli.DefaultLimit;
             bool permissive = false;
             bool verbose = false;
+            bool repl = false;
 
             uint number;
             string text;
-            for (int i = 1; i < args.Length; i++)
+            for (int i = 0; i < args.Length; i++)
             {
                 switch (args[i])
                 {
@@ -44,6 +44,9 @@ namespace RiscA.Rasim
                         if (!Cli.NextText(args, ref i, out text))
                             return Cli.Exit.Usage;
                         stdin = text;
+                        break;
+                    case "--repl":
+                        repl = true;
                         break;
                     case "--trace":
                         if (!Cli.NextText(args, ref i, out text))
@@ -142,12 +145,21 @@ namespace RiscA.Rasim
             }
 
             var cpu = new CPU(bus);
+            Cli.Error($"{input}: {loaded} bytes at 0x{where:X8}");
 
             StreamWriter? traceWriter = null;
             try
             {
                 if (trace is string tracePath)
                     traceWriter = new StreamWriter(tracePath);
+
+                if (repl || (stdin is null && !Console.IsInputRedirected))
+                {
+                    if (traceWriter is not null)
+                        cpu.OnRetire = step => traceWriter.WriteLine(step);
+                    return DebugSession.Run(cpu, limit);
+                }
+
                 if (verbose || traceWriter is not null)
                     cpu.OnRetire = step =>
                     {
@@ -161,7 +173,7 @@ namespace RiscA.Rasim
                 stdout.Flush();
                 traceWriter?.Flush();
 
-                return Report(input, loaded, where, cpu, last, limit);
+                return Report(cpu, last, limit);
             }
             finally
             {
@@ -171,10 +183,9 @@ namespace RiscA.Rasim
         }
 
         //what the run produced and what the process exit code means
-        private static int Report(string input, int loaded, uint origin, CPU cpu, StepResult last, ulong limit)
+        private static int Report(CPU cpu, StepResult last, ulong limit)
         {
-            Cli.Error($"{input}: {loaded} bytes at 0x{origin:X8}, " +
-                $"{cpu.InstructionsRetired} instructions retired, pc 0x{cpu.PC:X8} ({cpu.Bus.RegionName(cpu.PC)})");
+            Cli.Error($"{cpu.InstructionsRetired} instructions retired, pc 0x{cpu.PC:X8} ({cpu.Bus.RegionName(cpu.PC)})");
 
             if (!cpu.Halted)
             {

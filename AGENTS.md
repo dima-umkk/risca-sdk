@@ -5,7 +5,7 @@
 | `RiscA.Core` | `src/RiscA.Core/` | Library — `RiscA.Core.ISA` (`Instruction`, `OpCode`, func enums) + `RiscA.Core.Asm` (`Assembler`, `Preprocessor`, `Parser`, `Tokenizer`, `TK`) + `RiscA.Core.HW` (`CPU`, `Bus` with nested `Options`/`Fault`/`FaultKind`, `Ram`, `Rom`, `IDevice`, `UartDevice`, `ProgramImage`, `StepResult`, `StopReason`) |
 | `RiscA.Assembler` | `src/RiscA.Assembler/` | CLI (`Program.cs`) — references Core. Builds as `rasm.exe`. |
 | `RiscA.Core.Tests` | `tests/RiscA.Core.Tests/` | xunit + FluentAssertions — references Core; `HW/` holds the emulator tests |
-| `RiscA.Rasim` | `src/RiscA.Rasim/` | CLI (`Program.cs`, `AssemblyName=rasim`, `PublishAot`) — one tool, subcommands `run`, `disasm`, `debug` (stub until M2). References Core. |
+| `RiscA.Rasim` | `src/RiscA.Rasim/` | CLI (`Program.cs` → `RunCommand.cs`, `DebugSession.cs`, `Cli.cs`; `AssemblyName=rasim`, `PublishAot`) — single entry, no subcommands: script run or interactive debugger (M2). References Core. |
 
 ## Essentials
 
@@ -54,6 +54,10 @@
   architecture docs plus a one-screen cheat sheet (opcode table, ABI, assembler directives,
   quick start).
 - **`Instruction` struct** in `ISA/Instruction.cs` — immutable `readonly struct` with `(mask, shift)` tuple fields and `with*()` builder methods.
+  LINK: `CALL` (imm and reg forms) sets `R14 = address + 2`, `ret` is `RET R14` (`PC = regs[14]`) — a non-leaf
+  function saves/restores R14 itself (`samples/lib/uart.rasm`); the spec `EPC` is a separate register the
+  model only moves with `MOV`. `CALL_IMM` computes its target from a word-aligned base:
+  `((address >> 2) << 2) + ImmCallJr * 4`.
 - **Assembler CLI** (`src/RiscA.Assembler/Program.cs`): `rasm -i <file.rasm>` plus optional `-v` (verbose), `-vp` (parser match debug), `-vi` (instruction dump). Sample: `samples/base.test.rasm`.
 - **Assembler directives** (`src/RiscA.Core/Asm/Preprocessor.cs`, runs before the two assembler passes):
   `.equ NAME, value` (integer constant in decimal/`0x`/`0b` or a number expression, substituted into any
@@ -100,8 +104,8 @@
   path and from `LDB/LDW/STB/STW`, a single load image, memory map with device blocks of 256 bytes at low
   addresses, UART0 = 4 registers, no interrupts yet, one `rasim` CLI, symbol map format, milestones M0…M4).
   The emulator core (milestone M0) and the console uart layer (M1) live in `src/RiscA.Core/HW`, the
-  `rasim` CLI (M1: `run` and `disasm` work) in `src/RiscA.Rasim`; the debugger and the
-  compiler are not implemented yet. The spec `doc/RiscA.MD` is the authority, `artifacts/rtl/`
+  single-entry `rasim` CLI (M1 run, M2 debugger REPL) in `src/RiscA.Rasim`; the M2 symbol map
+  (`rasm -s`, labels in debugger commands) and the compiler are not implemented yet. The spec `doc/RiscA.MD` is the authority, `artifacts/rtl/`
   is a read-only upstream reference and must not be edited.
 - **Compiler design record:** `doc/compiler-architecture.md` — the agreed architecture of the
   C compiler (milestone M3): reuse a C frontend via QBE IL (textual SSA-like IR) + our own
@@ -114,7 +118,7 @@
   Register allocation is decided to live in the assembler (accepted milestone **A2** plan,
   `doc/assembler-architecture.md` section 7), so `rcc` consumes the IL's virtual temporaries
   as named operands and stays a near-transliterator.
-  The debugger and the compiler are not implemented yet.
+  The compiler is not implemented yet.
 - **Emulator core** (`src/RiscA.Core/HW`, namespace `RiscA.Core.HW`, block-style namespaces):
   one flat `Bus` — a list of `IDevice`; everything is a device (`Ram`, `Rom`, `UartDevice`,
   test fakes), each decoding its own absolute addresses: `Name`, `Contains(address, length)`,
@@ -128,8 +132,11 @@
   LinkRegister/StackPointer`). `CPU.Step()`/`Run(limit)` retire one
   instruction at a time; a `Bus.Fault`
   or an illegal instruction does not retire, the `PC` stays on the faulting instruction and the machine
-  halts. `StopReason`: `Running`, `Reti` (stop convention), `IntNotImplemented`, `IllegalInstruction`,
-  `BusFault`, `InstructionLimit`, `Halted`. `OnRetire` (`Action<StepResult>`) is the trace hook, called
+  halts. `CPU` also owns the breakpoint addresses (`AddBreakpoint`/`RemoveBreakpoint`/`HasBreakpoint`,
+  `Breakpoints`): `Run` checks them after each retire and stops with `StopReason.Breakpoint` before
+  executing the instruction PC arrived at — continuing runs past the breakpoint; `Step` ignores them.
+  `StopReason`: `Running`, `Reti` (stop convention), `IntNotImplemented`, `IllegalInstruction`,
+  `BusFault`, `InstructionLimit`, `Breakpoint`, `Halted`. `OnRetire` (`Action<StepResult>`) is the trace hook, called
   for retired steps only. The library never touches `System.Console` — `UartDevice` takes
   `Stream?` input/output; there is no `IConsole` and no `Registers` class.
 - **Console uart** (`src/RiscA.Core/HW/UartDevice.cs`): `UartDevice : IDevice` at `UartDevice.DefaultBase`
@@ -140,11 +147,15 @@
   at `rx_ready`/`rx_data`, and EOF latches forever. Byte access is a read-modify-write of the whole
   register (the `STB` into `tx_data` trap). No `Tick`, no `IConsole`, no `InputWaitDetector` — a program
   waiting for input that will not come is caught by `--limit`.
-- **rasim CLI** (`src/RiscA.Rasim/`): `rasim run <prog.bin>` executes an image (`--origin`, `--reset`,
-  `--stdin <file>`, `--limit`, `--trace <file>`, `-v`, `--permissive`), `rasim disasm <prog.bin>` prints
-  decoded halfwords, `rasim debug` is an M2 stub. The machine is built in code: default `Ram` +
+- **rasim CLI** (`src/RiscA.Rasim/`): one entry, no subcommands — `rasim <prog.bin> [options]`
+  (`--origin`, `--reset`, `--stdin <file>`, `--repl`, `--limit`, `--trace <file>`, `-v`, `--permissive`;
+  `--help`/`--version`). Redirected stdin (or `--stdin`) runs the program to its end (auto mode, for tests
+  and pipes); a terminal (or `--repl`) stops at the reset vector and opens the debugger REPL:
+  `s [n]`, `c`, `b <addr>`, `bl`, `u <addr>`, `r`, `m <addr> [len]`, `h`, `q` — all REPL I/O goes to
+  stderr. `disasm` is gone: showing the instruction at `PC` is the prompt's job. Breakpoints are numeric
+  addresses for now; labels come with the M2 symbol map. The machine is built in code: default `Ram` +
   `UartDevice` wired to `Console.OpenStandardInput/Output` (or the `--stdin` file); a later device-settings
   file will describe several RAM regions and ROMs loaded from `rom.bin`. Program
-  bytes go to stdout, every `rasim` message to stderr. Exit codes: 0 `reti`, 1 usage or file error,
+  bytes go to stdout, every `rasim` message to stderr. Exit codes: 0 `reti`/quit, 1 usage or file error,
   2 instruction limit, 3 bus fault, 4 illegal instruction, 5 `INT`.
 - **Verbose flags** (`src/RiscA.Core/Verbose.cs`): `Verbose.ParserMatches` (`-vp`) and `Verbose.AssemblerInstructions` (`-vi`) control debug output.

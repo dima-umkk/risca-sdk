@@ -1,32 +1,19 @@
 using RiscA.Rasim;
-using System;
 
-//rasim: the one CLI of the emulator - run, disasm and, later, debug
+//one command: the image is the first argument, no subcommands
 if (args.Length == 0)
 {
     Console.Error.WriteLine(Cli.Usage);
     return Cli.Exit.Usage;
 }
-
-switch (args[0])
+if (args[0] is "--version" or "-V")
 {
-    case "run":
-        return RunCommand.Execute(args);
-    case "disasm":
-        return DisasmCommand.Execute(args);
-    case "debug":
-        return DebugCommand.Execute(args);
-    case "--version":
-    case "-V":
-        Console.WriteLine($"rasim {Cli.Version}");
-        return Cli.Exit.Ok;
-    case "--help":
-    case "-h":
-    case "help":
-        Console.WriteLine(Cli.Usage);
-        return Cli.Exit.Ok;
-    default:
-        Cli.Error($"unknown command '{args[0]}'");
-        Console.Error.WriteLine(Cli.Usage);
-        return Cli.Exit.Usage;
+    Console.WriteLine($"rasim {Cli.Version}");
+    return Cli.Exit.Ok;
 }
+if (args[0] is "--help" or "-h" or "help")
+{
+    Console.WriteLine(Cli.Usage);
+    return Cli.Exit.Ok;
+}
+return RunCommand.Execute(args);

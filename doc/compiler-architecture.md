@@ -32,7 +32,7 @@ libc-модули (C) ───────────────────�
                                             ▼
                                prog.rasm (+ pool'ы констант)
                                             ▼
-                                  rasm ──► prog.bin ──► rasim run
+                                  rasm ──► prog.bin ──► rasim
 ```
 
 `cproc` и QBE — MIT, можно вендорить в репозиторий как `third-party/` (решение по
@@ -260,7 +260,7 @@ tests/RiscA.Rcc.Tests/Golden/
    <имя>.expected     ожидаемый вывод + код возврата
 ```
 
-Прогон: наш `rcc` → `.rasm` → `rasm` → `.bin` → `rasim run`; контроль того же IL —
+Прогон: наш `rcc` → `.rasm` → `rasm` → `.bin` → `rasim` (режим скрипта с `--stdin`); контроль того же IL —
 `qbe -o out.s && cc out.s && ./a.out` в WSL (эталон поведения самого IL-программиста).
 Первые сюжеты: hello (data+LDI), эхо-повтор UART, цикл-sum, fib (call/ret/стек),
 gcd (ветки/сравнения), таблица строк (`dw` меток).
