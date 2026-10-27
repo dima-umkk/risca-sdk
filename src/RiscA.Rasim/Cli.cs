@@ -8,17 +8,11 @@ namespace RiscA.Rasim
     //Shared parts of the rasim command line: usage text, number syntax, exit codes.
     internal static class Cli
     {
-        //the default clock of the emulated machine, only used to turn --baud into cycles
-        public const int DefaultCpuHz = 25_000_000;
-
         //the default of --limit: the run stops instead of spinning forever
         public const ulong DefaultLimit = 10_000_000;
 
-        //how many reads of an empty rx_ready mean "this program is not going to get a byte"
-        public const int DefaultPatience = 4096;
-
         //images live in the ram unless --origin says otherwise
-        public const uint DefaultOrigin = BusOptions.DeviceWindowEnd;
+        public const uint DefaultOrigin = Ram.DefaultBase;
 
         public static string Version
         {
@@ -41,12 +35,8 @@ namespace RiscA.Rasim
               prog.bin          the image, the raw little-endian halfwords as `rasm -o` writes them
               --origin <addr>   where the image goes, default 0x00010000 (the start of the ram)
               --reset <addr>    where the cpu starts, default: the origin
-              --ram-size <n>    size of the ram in bytes, default 65536
               --stdin <file>    read the console input from a file instead of the terminal
-              --baud <bits>     make the transmitter slow: one byte occupies 10 bit times
-              --cpu-hz <hertz>  the emulated clock used by --baud, default 25000000
               --limit <n>       stop after this many retired instructions, default 10000000
-              --patience <n>    reads of an empty rx_ready before the wait is called hopeless
               --trace <file>    write every retired instruction to a file
               -v                print every retired instruction while running
               --permissive      an unmapped access reads as 0 instead of stopping the machine
@@ -57,8 +47,7 @@ namespace RiscA.Rasim
             numbers are decimal, 0x... hexadecimal or 0b... binary.
 
             exit codes of run: 0 RETI, 2 instruction limit, 3 bus fault, 4 illegal instruction,
-            5 INT (interrupts are not implemented), 6 the program waited for console input that
-            cannot arrive. 1 means a usage or a file error.
+            5 INT (interrupts are not implemented). 1 means a usage or a file error.
             """;
 
         public static void Error(string message)
@@ -79,7 +68,6 @@ namespace RiscA.Rasim
             public const int BusFault = 3;
             public const int Illegal = 4;
             public const int Interrupt = 5;
-            public const int InputWait = 6;
         }
 
         public static bool NextNumber(string[] args, ref int i, out uint value)

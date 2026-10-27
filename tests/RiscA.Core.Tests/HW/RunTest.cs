@@ -26,8 +26,8 @@ public class RunTest
 
         var last = cpu.Run();
 
-        cpu.Regs[0].Should().Be(15);
-        cpu.Regs[1].Should().Be(0);
+        cpu[0].Should().Be(15);
+        cpu[1].Should().Be(0);
         last.Reason.Should().Be(StopReason.Reti);
         last.Address.Should().Be(Ram + 10);
         cpu.InstructionsRetired.Should().Be(18);
@@ -61,8 +61,8 @@ public class RunTest
 
         var last = cpu.Run();
 
-        cpu.Regs[0].Should().Be(72);          //2 * 6 * 6
-        cpu.Regs[15].Should().Be(0x0001_1000); //the stack pointer is balanced
+        cpu[0].Should().Be(72);          //2 * 6 * 6
+        cpu[15].Should().Be(0x0001_1000); //the stack pointer is balanced
         last.Reason.Should().Be(StopReason.Reti);
         cpu.InstructionsRetired.Should().Be(16);
         cpu.Bus.ReadWord(0x0001_0FFC).Should().Be(Ram + 10); //the saved link is still in the stack frame
@@ -94,8 +94,8 @@ public class RunTest
 
         var last = cpu.Run();
 
-        cpu.Regs[0].Should().Be(72);          //2 * 6 * 6
-        cpu.Regs[15].Should().Be(0x0001_1000); //push/pop leave the stack pointer where they found it
+        cpu[0].Should().Be(72);          //2 * 6 * 6
+        cpu[15].Should().Be(0x0001_1000); //push/pop leave the stack pointer where they found it
         last.Reason.Should().Be(StopReason.Reti);
         //the expansion costs exactly the four instructions the hand written version above retires
         cpu.InstructionsRetired.Should().Be(16);
@@ -115,7 +115,7 @@ public class RunTest
 
         var last = cpu.Run();
 
-        cpu.Regs[0].Should().Be(1234);
+        cpu[0].Should().Be(1234);
         last.Reason.Should().Be(StopReason.Reti);
         cpu.InstructionsRetired.Should().Be(2);
     }
@@ -124,7 +124,7 @@ public class RunTest
     public void A_program_drives_a_device_through_the_named_slots()
     {
         var cpu = Harness.Program("""
-            	.equ UART0,     0x0000   ;the device block of uart0
+            	.equ UART0,     0x0000   ;uart0 sits at the bottom of the address space
             	.equ RX_DATA,   0        ;slot 0
             	.equ RX_READY,  1        ;slot 1
             	.equ TX_DATA,   2        ;slot 2
@@ -142,13 +142,13 @@ public class RunTest
             	reti
             """);
 
-        var uart = new FakeDevice("uart0", 4, [0x42, 1, 0, 1]);
-        cpu.Bus.AddDevice("uart0", 0, uart);
+        var uart = new FakeDevice("uart0", 0, 4, [0x42, 1, 0, 1]);
+        cpu.Bus.AddDevice(uart);
 
         var last = cpu.Run();
 
-        cpu.Regs[3].Should().Be(0x42);             //rx_data of the fake device
-        cpu.Regs[1].Should().Be(65);
+        cpu[3].Should().Be(0x42);             //rx_data of the fake device
+        cpu[1].Should().Be(65);
         uart.Written.Should().HaveCount(1);
         uart.Written[0].Should().Be((8, 65u)); //slot 2 -> byte offset 8 of block 0
         last.Reason.Should().Be(StopReason.Reti);
@@ -188,7 +188,7 @@ public class RunTest
         var last = cpu.Run(100);
 
         last.Reason.Should().Be(StopReason.InstructionLimit);
-        cpu.Regs[0].Should().Be(1);
+        cpu[0].Should().Be(1);
         cpu.InstructionsRetired.Should().Be(100);
     }
 
@@ -201,7 +201,7 @@ public class RunTest
 
         var last = cpu.Run();
 
-        cpu.Regs[0].Should().Be(42);
+        cpu[0].Should().Be(42);
         last.Reason.Should().Be(StopReason.Reti);
     }
 
@@ -214,7 +214,7 @@ public class RunTest
 
         var last = cpu.Run();
 
-        cpu.Regs[1].Should().Be(7);
+        cpu[1].Should().Be(7);
         last.Reason.Should().Be(StopReason.Reti);
     }
 
@@ -227,7 +227,7 @@ public class RunTest
 
         var last = cpu.Run();
 
-        cpu.Regs[0].Should().Be(5);
+        cpu[0].Should().Be(5);
         last.Reason.Should().Be(StopReason.Reti);
     }
 
@@ -246,7 +246,7 @@ public class RunTest
 
         var last = cpu.Run();
 
-        cpu.Regs[1].Should().Be(1234);
+        cpu[1].Should().Be(1234);
         last.Reason.Should().Be(StopReason.Reti);
     }
 }

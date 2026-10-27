@@ -51,7 +51,7 @@ public class ControlFlowTest
         var last = cpu.Run();
 
         last.Reason.Should().Be(StopReason.Reti);
-        cpu.Regs[1].Should().Be(0);
+        cpu[1].Should().Be(0);
         cpu.InstructionsRetired.Should().Be(8);
     }
 
@@ -64,7 +64,7 @@ public class ControlFlowTest
         cpu.Step();
 
         cpu.PC.Should().Be(Origin + 2 * 4);
-        cpu.Regs[Registers.LinkRegister].Should().Be(Origin + 2);
+        cpu[CPU.LinkRegister].Should().Be(Origin + 2);
     }
 
     [Fact]
@@ -77,7 +77,7 @@ public class ControlFlowTest
         cpu.Step();
 
         cpu.PC.Should().Be(Origin);
-        cpu.Regs[14].Should().Be(Origin + 8);
+        cpu[14].Should().Be(Origin + 8);
     }
 
     [Fact]
@@ -88,7 +88,7 @@ public class ControlFlowTest
         cpu.Step();
 
         cpu.PC.Should().Be(Origin + 0x40);
-        cpu.Regs[14].Should().Be(Origin + 2);
+        cpu[14].Should().Be(Origin + 2);
     }
 
     [Fact]
@@ -112,7 +112,7 @@ public class ControlFlowTest
         cpu.Step();
 
         cpu.PC.Should().Be(Origin + 0x20);
-        cpu.Regs[14].Should().Be(0); //JMP does not touch the link register
+        cpu[14].Should().Be(0); //JMP does not touch the link register
     }
 
     [Theory]
@@ -179,9 +179,9 @@ public class ControlFlowTest
         cpu.PC.Should().Be(Origin);
         cpu.Halted.Should().BeFalse();
         cpu.InstructionsRetired.Should().Be(0);
-        cpu.Regs[0].Should().Be(0);
-        cpu.Regs[14].Should().Be(0);
-        cpu.Regs.EPC.Should().Be(0);
+        cpu[0].Should().Be(0);
+        cpu[14].Should().Be(0);
+        cpu.EPC.Should().Be(0);
     }
 
     [Fact]
@@ -193,10 +193,10 @@ public class ControlFlowTest
 
         cpu.Run(3);
 
-        cpu.Regs.EPC.Should().Be(0xF0);
+        cpu.EPC.Should().Be(0xF0);
         //MOV R2, EPC overwrote the preset value of R2
-        cpu.Regs[2].Should().Be(0xF0);
-        cpu.Regs[1].Should().Be(0xF0);
+        cpu[2].Should().Be(0xF0);
+        cpu[1].Should().Be(0xF0);
     }
 
     [Fact]

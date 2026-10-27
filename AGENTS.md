@@ -2,7 +2,7 @@
 
 | Project | Path | Type |
 |---------|------|------|
-| `RiscA.Core` | `src/RiscA.Core/` | Library — `RiscA.Core.ISA` (`Instruction`, `OpCode`, func enums) + `RiscA.Core.Asm` (`Assembler`, `Preprocessor`, `Parser`, `Tokenizer`, `TK`) + `RiscA.Core.HW` (`CPU`, `Bus`, `RamRegion`, `DeviceRegion`, `IDevice`, `UartDevice`, `IConsole`, `InputWaitDetector`, `Registers`, `ProgramImage`, `BusFault`, `BusOptions`) |
+| `RiscA.Core` | `src/RiscA.Core/` | Library — `RiscA.Core.ISA` (`Instruction`, `OpCode`, func enums) + `RiscA.Core.Asm` (`Assembler`, `Preprocessor`, `Parser`, `Tokenizer`, `TK`) + `RiscA.Core.HW` (`CPU`, `Bus`, `Ram`, `Rom`, `IDevice`, `UartDevice`, `ProgramImage`, `BusFault`, `BusOptions`, `StepResult`, `StopReason`) |
 | `RiscA.Assembler` | `src/RiscA.Assembler/` | CLI (`Program.cs`) — references Core. Builds as `rasm.exe`. |
 | `RiscA.Core.Tests` | `tests/RiscA.Core.Tests/` | xunit + FluentAssertions — references Core; `HW/` holds the emulator tests |
 | `RiscA.Rasim` | `src/RiscA.Rasim/` | CLI (`Program.cs`, `AssemblyName=rasim`, `PublishAot`) — one tool, subcommands `run`, `disasm`, `debug` (stub until M2). References Core. |
@@ -116,25 +116,35 @@
   as named operands and stays a near-transliterator.
   The debugger and the compiler are not implemented yet.
 - **Emulator core** (`src/RiscA.Core/HW`, namespace `RiscA.Core.HW`, block-style namespaces):
-  one flat `Bus` — `RamRegion` (byte array, little-endian, unaligned words allowed) plus
-  `DeviceRegion` wrappers around `IDevice` at `addr[31:16] == 0`, device blocks of 256 bytes
-  (`AddDevice(name, block, device)`). `ResetVector` defaults to the start of the RAM
-  (`0x0001_0000`), `BusOptions.ResetVector` overrides it. `CPU.Step()`/`Run(limit)` retire one
-  instruction at a time, every device gets exactly one `Tick()` per retired instruction; a `BusFault`
+  one flat `Bus` — a list of `IDevice`; everything is a device (`Ram`, `Rom`, `UartDevice`,
+  test fakes), each decoding its own absolute addresses: `Name`, `Contains(address, length)`,
+  `ReadByte/WriteByte/ReadWord/WriteWord`; `Bus.AddDevice(device)` is fluent, `Bus` composes
+  halfwords from two byte accesses and reports `RegionName`. `BusOptions`: `ResetVector`
+  (null = base of the first `Ram`, `Ram.DefaultBase` = `0x0001_0000`) + `Permissive`. No
+  `Tick()` and no device timing — devices advance when the program looks at them.
+  `BusFaultKind`: `Unmapped`, `Unaligned`, `ReadOnly` (a write to `Rom`). `Ram` allows
+  unaligned words (`DefaultSize` = 64 KiB); `Rom` takes a `byte[]` or a file path. `CPU`
+  holds its own 16 registers (`cpu[i]` indexer, `cpu.EPC`, `CPU.ResultRegister/
+  LinkRegister/StackPointer`). `CPU.Step()`/`Run(limit)` retire one
+  instruction at a time; a `BusFault`
   or an illegal instruction does not retire, the `PC` stays on the faulting instruction and the machine
   halts. `StopReason`: `Running`, `Reti` (stop convention), `IntNotImplemented`, `IllegalInstruction`,
   `BusFault`, `InstructionLimit`, `Halted`. `OnRetire` (`Action<StepResult>`) is the trace hook, called
-  for retired steps only. The library never touches `System.Console` (the `rasim` CLI owns I/O).
-- **Console uart** (`src/RiscA.Core/HW/UartDevice.cs`): UART0 sits in device block 0 and has four word
-  registers — `rx_data` (slot 0, a read pops the receive fifo), `rx_ready` (slot 1), `tx_data` (slot 2, a
-  write takes the low byte and is dropped while the transmitter is busy), `tx_ready` (slot 3, `1` when idle).
-  The receive fifo is 16 bytes deep, at most one console byte is pulled per retired instruction, and a write
-  to `rx_data` injects a byte (scripted input in tests). `txCyclesPerByte` > 0 models the baud rate in
-  retired instructions. `InputWaitDetector` catches a program polling an empty `rx_ready` after the input has
-  ended (`IConsole.InputEnded`), counted by `UartDevice.EmptyReadyReads`.
-- **rasim CLI** (`src/RiscA.Rasim/Program.cs`): `rasim run <prog.bin>` executes an image (`--origin`, `--reset`,
-  `--ram-size`, `--stdin <file>`, `--baud`, `--cpu-hz`, `--limit`, `--patience`, `--trace <file>`, `-v`,
-  `--permissive`), `rasim disasm <prog.bin>` prints decoded halfwords, `rasim debug` is an M2 stub. Program
+  for retired steps only. The library never touches `System.Console` — `UartDevice` takes
+  `Stream?` input/output; there is no `IConsole` and no `Registers` class.
+- **Console uart** (`src/RiscA.Core/HW/UartDevice.cs`): `UartDevice : IDevice` at `UartDevice.DefaultBase`
+  (0x0000_0000), four word registers — `rx_data` (slot 0, a read pops the receive fifo, a write injects a
+  byte — scripted input in tests), `rx_ready` (slot 1), `tx_data` (slot 2, a write emits the low byte),
+  `tx_ready` (slot 3, always `1` — no baud/transmitter timing in the model). The receive fifo is 16 bytes
+  deep; the model pulls one byte from the input `Stream` only when the fifo is empty and the program looks
+  at `rx_ready`/`rx_data`, and EOF latches forever. Byte access is a read-modify-write of the whole
+  register (the `STB` into `tx_data` trap). No `Tick`, no `IConsole`, no `InputWaitDetector` — a program
+  waiting for input that will not come is caught by `--limit`.
+- **rasim CLI** (`src/RiscA.Rasim/`): `rasim run <prog.bin>` executes an image (`--origin`, `--reset`,
+  `--stdin <file>`, `--limit`, `--trace <file>`, `-v`, `--permissive`), `rasim disasm <prog.bin>` prints
+  decoded halfwords, `rasim debug` is an M2 stub. The machine is built in code: default `Ram` +
+  `UartDevice` wired to `Console.OpenStandardInput/Output` (or the `--stdin` file); a later device-settings
+  file will describe several RAM regions and ROMs loaded from `rom.bin`. Program
   bytes go to stdout, every `rasim` message to stderr. Exit codes: 0 `reti`, 1 usage or file error,
-  2 instruction limit, 3 bus fault, 4 illegal instruction, 5 `INT`, 6 waiting for input that will not come.
+  2 instruction limit, 3 bus fault, 4 illegal instruction, 5 `INT`.
 - **Verbose flags** (`src/RiscA.Core/Verbose.cs`): `Verbose.ParserMatches` (`-vp`) and `Verbose.AssemblerInstructions` (`-vi`) control debug output.

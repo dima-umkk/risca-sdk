@@ -1,118 +1,126 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 
 namespace RiscA.Core.HW
 {
-    //Console uart, polling only: slot0 rx_data pops the rx fifo, slot1 rx_ready, slot2 tx_data sends the low byte, slot3 tx_ready.
+    //Console uart, polling only: slot0 rx_data pops the receive fifo, slot1 rx_ready, slot2 tx_data sends the low byte, slot3 tx_ready.
     public sealed class UartDevice : IDevice
     {
         public const string DeviceName = "uart0";
-        //the block number, block 0 is the first one in the device window
-        public const int Block = 0;
+        //the console uart lives at the start of the device window, device block 0 of the ISA memory map
+        public const uint DefaultBase = 0x0000_0000;
 
-        //register numbers, [r+N] addresses word slot N (the bus shifts the offset by 2)
+        //register numbers: [r+N] addresses word slot N
         public const int RxDataSlot = 0;
         public const int RxReadySlot = 1;
         public const int TxDataSlot = 2;
         public const int TxReadySlot = 3;
 
-        //how many bytes the receive FIFO holds before the console is not asked for more
+        //how many bytes the receive FIFO holds before the input stream is not asked for more
         public const int RxFifoDepth = 16;
 
-        private readonly IConsole _console;
-        private readonly int _txCyclesPerByte;
+        //four word registers
+        public const int RegisterBytes = 4 * 4;
+
+        private readonly Stream? _input;
+        private readonly Stream? _output;
         private readonly Queue<byte> _rx = new Queue<byte>();
-        //retired instructions the current transmitted byte still occupies, 0 means ready
-        private int _txBusy;
-        //how many times in a row the program asked rx_ready and got 0, any arriving byte resets it
-        private int _emptyReadyReads;
+        private bool _inputEnded;
 
-        public string Name => DeviceName;
-        public int Size => 4 * 4;
+        public string Name { get; }
+        public uint Base { get; }
 
-        //a byte is waiting for the program, either in the FIFO or not read out yet
-        public bool RxAvailable => _rx.Count > 0;
-        //how many bytes are still in the receive FIFO
+        //how many bytes are waiting in the receive FIFO
         public int RxCount => _rx.Count;
-        //rx_ready polls that answered "nothing yet" since the last byte arrived, used by InputWaitDetector
-        public int EmptyReadyReads => _emptyReadyReads;
 
-        //txCyclesPerByte=0 sends instantly; a positive value is the wire time of one byte in retired instructions (rasim --baud)
-        public UartDevice(IConsole console, int txCyclesPerByte = 0)
+        //null streams mean the side never moves: a write to rx_data still injects a byte (scripted input in tests)
+        public UartDevice(Stream? input = null, Stream? output = null, string name = DeviceName, uint bas = DefaultBase)
         {
-            _console = console;
-            _txCyclesPerByte = txCyclesPerByte < 0 ? 0 : txCyclesPerByte;
+            Name = name;
+            Base = bas;
+            _input = input;
+            _output = output;
         }
 
-        public uint ReadWord(int offset)
+        public bool Contains(uint address, int length)
+            => address >= Base && address - Base + (uint)length <= RegisterBytes;
+
+        private int Offset(uint address, int length)
         {
-            switch (offset)
+            if (!Contains(address, length))
+                throw new BusFault(address, BusFaultKind.Unmapped,
+                    $"{length} byte access at 0x{address:X8} is outside the registers of {Name} (0x{Base:X8}..0x{Base + RegisterBytes - 1:X8})");
+            return (int)(address - Base);
+        }
+
+        //the input stream is asked only when the program looks, one byte per look
+        private void Pull()
+        {
+            if (_rx.Count > 0 || _inputEnded || _input is null)
+                return;
+            int c = _input.ReadByte();
+            if (c >= 0)
+                _rx.Enqueue((byte)c);
+            else
+                _inputEnded = true;
+        }
+
+        public uint ReadWord(uint address)
+        {
+            int off = Offset(address, 4);
+            if (off % 4 != 0)
+                throw new BusFault(address, BusFaultKind.Unaligned,
+                    $"word access at 0x{address:X8} is not aligned to a register of {Name}");
+            switch (off / 4)
             {
-                case RxDataSlot * 4:
+                case RxDataSlot:
                     //an empty FIFO reads as 0, that is the agreed convention, not random data
-                    if (_rx.Count == 0)
-                        return 0u;
-                    _emptyReadyReads = 0;
-                    return _rx.Dequeue();
-                case RxReadySlot * 4:
-                    if (_rx.Count > 0)
-                    {
-                        _emptyReadyReads = 0;
-                        return 1u;
-                    }
-                    _emptyReadyReads++;
-                    return 0u;
-                case TxReadySlot * 4:
-                    //the transmitter is ready when the current byte is off the wire
-                    return _txBusy == 0 ? 1u : 0u;
+                    Pull();
+                    return _rx.Count > 0 ? _rx.Dequeue() : 0u;
+                case RxReadySlot:
+                    Pull();
+                    return _rx.Count > 0 ? 1u : 0u;
+                case TxReadySlot:
+                    return 1u;        //the transmitter never sleeps: there is no wire timing in the model
                 default:
-                    //tx_data has no meaningful read, it is the write side of the register
-                    return 0u;
+                    return 0u;        //tx_data has no meaningful read
             }
         }
 
-        public void WriteWord(int offset, uint value)
+        public void WriteWord(uint address, uint value)
         {
-            switch (offset)
+            int off = Offset(address, 4);
+            if (off % 4 != 0)
+                throw new BusFault(address, BusFaultKind.Unaligned,
+                    $"word access at 0x{address:X8} is not aligned to a register of {Name}");
+            switch (off / 4)
             {
-                case RxDataSlot * 4:
+                case RxDataSlot:
                     //writing rx_data injects a byte: the scripted input of tests and scripts
                     if (_rx.Count < RxFifoDepth)
-                        Push((byte)value);
+                        _rx.Enqueue((byte)value);
                     break;
-                case TxDataSlot * 4:
-                    //a write while busy is a programming error: the byte is dropped so the gap is visible
-                    if (_txBusy == 0)
-                    {
-                        _console.WriteChar((byte)value);
-                        _txBusy = _txCyclesPerByte;
-                    }
+                case TxDataSlot:
+                    _output?.WriteByte((byte)value);
                     break;
-                default:
-                    //rx_ready and tx_ready are read only, writing them does nothing
-                    break;
+                //rx_ready and tx_ready are read only, writing them does nothing
             }
         }
 
-        public void Tick()
+        //a byte access is a read modify write of the whole register, so a character must go through the word like in samples/lib/uart.rasm
+        public byte ReadByte(uint address)
         {
-            if (_txBusy > 0)
-                _txBusy--;
-
-            if (_rx.Count < RxFifoDepth)
-            {
-                //at most one console byte per retired instruction; a full fifo stops asking the console
-                int c = _console.ReadChar();
-                if (c >= 0)
-                    Push((byte)c);
-            }
+            int off = Offset(address, 1);
+            return (byte)(ReadWord(Base + (uint)(off & ~3)) >> (8 * (off & 3)));
         }
 
-        //one byte arrives, from the console or written by the program itself
-        private void Push(byte value)
+        public void WriteByte(uint address, byte value)
         {
-            _rx.Enqueue(value);
-            _emptyReadyReads = 0;
+            int off = Offset(address, 1);
+            uint reg = Base + (uint)(off & ~3);
+            uint merged = (ReadWord(reg) & ~(0xFFu << (8 * (off & 3)))) | ((uint)value << (8 * (off & 3)));
+            WriteWord(reg, merged);
         }
     }
 }

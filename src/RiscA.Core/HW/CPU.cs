@@ -35,15 +35,31 @@ namespace RiscA.Core.HW
     //An instruction accurate (retire) model of the Risc-A core: spec side effects yes, pipeline and timing no.
     public sealed class CPU
     {
+        //the ABI of doc/RiscA.MD lines 154-159
+        public const int ResultRegister = 0;
+        public const int LinkRegister = 14;
+        public const int StackPointer = 15;
+
         public Bus Bus { get; }
-        public Registers Regs { get; } = new Registers();
-        //the program counter, the debugger reads and writes it
         public uint PC { get; set; }
         public ulong InstructionsRetired { get; private set; }
         public bool Halted { get; private set; }
         public StepResult Last { get; private set; }
         //trace hook: rasim -v and the debugger print every step through it
         public Action<StepResult>? OnRetire { get; set; }
+
+        //R0-R15 plus EPC of opcode 7; interrupts are not modelled, EPC is only reachable through MOV
+        private readonly uint[] _regs = new uint[16];
+        public uint EPC { get; set; }
+
+        public uint this[int index]
+        {
+            get => _regs[Valid(index)];
+            set => _regs[Valid(index)] = value;
+        }
+
+        private static int Valid(int index)
+            => index is >= 0 and < 16 ? index : throw new ArgumentOutOfRangeException(nameof(index), $"R{index} is not a register of this CPU");
 
         public CPU(Bus bus)
         {
@@ -54,7 +70,8 @@ namespace RiscA.Core.HW
 
         public void Reset()
         {
-            Regs.Reset();
+            Array.Clear(_regs);
+            EPC = 0;
             PC = Bus.ResetVector;
             InstructionsRetired = 0;
             Halted = false;
@@ -119,9 +136,8 @@ namespace RiscA.Core.HW
                 return result;
             }
 
-            //instruction accurate: the devices advance once per retired instruction
+            //instruction accurate: the devices advance when the program looks at them
             InstructionsRetired++;
-            Bus.TickDevices();
             Halted = result.Reason != StopReason.Running;
 
             Last = result;
@@ -146,10 +162,10 @@ namespace RiscA.Core.HW
                 {
                     if (inst.Func4 > (int)ALUFunc.SLTU)
                         return new StepResult(address, inst, StopReason.IllegalInstruction, $"ALU func4 {inst.Func4} is not used by the spec");
-                    uint rd = Regs[inst.Rd];
-                    uint rs = Regs[inst.Rs];
+                    uint rd = _regs[inst.Rd];
+                    uint rs = _regs[inst.Rs];
                     //two operand semantics: the destination is also the left operand (doc/RiscA.MD lines 37-46)
-                    Regs[inst.Rd] = (ALUFunc)inst.Func4 switch
+                    _regs[inst.Rd] = (ALUFunc)inst.Func4 switch
                     {
                         ALUFunc.MOV => rs,
                         ALUFunc.ADD => unchecked(rd + rs),
@@ -167,9 +183,9 @@ namespace RiscA.Core.HW
 
                 case OpCode.ALU_REG_IMM:
                 {
-                    uint rd = Regs[inst.Rd];
+                    uint rd = _regs[inst.Rd];
                     //only the low 4 bits of Imm7 shift (doc/RiscA.MD lines 59-60), like the hardware
-                    Regs[inst.Rd] = (ALUImmFunc)inst.Func2 switch
+                    _regs[inst.Rd] = (ALUImmFunc)inst.Func2 switch
                     {
                         ALUImmFunc.SHL => rd << (inst.Imm7 & 0xF),
                         ALUImmFunc.SHR => rd >> (inst.Imm7 & 0xF),
@@ -182,10 +198,10 @@ namespace RiscA.Core.HW
                 case OpCode.REG_IMM:
                 {
                     //MOVI/MOVL build a constant of any size in a sequence (doc/RiscA.MD lines 73-76)
-                    Regs[inst.Rd] = (RegImmFunc)inst.Func1 switch
+                    _regs[inst.Rd] = (RegImmFunc)inst.Func1 switch
                     {
                         RegImmFunc.MOVI => (uint)inst.Imm8,
-                        _ => (Regs[inst.Rd] << 8) | (uint)inst.Imm8,  //MOVL
+                        _ => (_regs[inst.Rd] << 8) | (uint)inst.Imm8,  //MOVL
                     };
                     break;
                 }
@@ -195,18 +211,18 @@ namespace RiscA.Core.HW
                     bool store = inst.Func21 == (int)LdStFunc.ST;
                     bool word = inst.Func22 == (int)LdStBWFunc.W;
                     //word access scales the offset by 4, byte access uses it as is (doc/RiscA.MD line 85)
-                    uint addr = unchecked(Regs[inst.Rs] + (uint)(word ? inst.Imm3 << 2 : inst.Imm3));
+                    uint addr = unchecked(_regs[inst.Rs] + (uint)(word ? inst.Imm3 << 2 : inst.Imm3));
                     if (store)
                     {
                         if (word)
-                            Bus.WriteWord(addr, Regs[inst.Rd]);
+                            Bus.WriteWord(addr, _regs[inst.Rd]);
                         else
-                            Bus.WriteByte(addr, (byte)(Regs[inst.Rd] & 0xFF)); //STB writes the low byte
+                            Bus.WriteByte(addr, (byte)(_regs[inst.Rd] & 0xFF)); //STB writes the low byte
                     }
                     else
                     {
                         //LDB is zero extended (doc/README.md, opcode 3 table)
-                        Regs[inst.Rd] = word ? Bus.ReadWord(addr) : Bus.ReadByte(addr);
+                        _regs[inst.Rd] = word ? Bus.ReadWord(addr) : Bus.ReadByte(addr);
                     }
                     break;
                 }
@@ -214,7 +230,7 @@ namespace RiscA.Core.HW
                 case OpCode.BRANCH:
                 {
                     //the offset is relative to the branch itself and is counted in instructions
-                    if ((BranchFunc)inst.Func1 == BranchFunc.BEQZ ? Regs[inst.Rd] == 0 : Regs[inst.Rd] != 0)
+                    if ((BranchFunc)inst.Func1 == BranchFunc.BEQZ ? _regs[inst.Rd] == 0 : _regs[inst.Rd] != 0)
                         PC = (uint)inst.CalcRef((int)address);
                     break;
                 }
@@ -222,7 +238,7 @@ namespace RiscA.Core.HW
                 case OpCode.LDI:
                 {
                     //a 32 bit constant from the same address space, PC relative in instructions
-                    Regs[inst.Rd] = Bus.ReadWord((uint)inst.CalcRef((int)address));
+                    _regs[inst.Rd] = Bus.ReadWord((uint)inst.CalcRef((int)address));
                     break;
                 }
 
@@ -231,16 +247,16 @@ namespace RiscA.Core.HW
                     switch ((CallJmpRetFunc)inst.Func2)
                     {
                         case CallJmpRetFunc.CALL_IMM:
-                            Regs[Registers.LinkRegister] = address + 2;
+                            _regs[LinkRegister] = address + 2;
                             PC = (uint)inst.CalcRef((int)address);
                             break;
                         case CallJmpRetFunc.CALL_REG:
-                            Regs[Registers.LinkRegister] = address + 2;
-                            PC = Regs[inst.Rd];
+                            _regs[LinkRegister] = address + 2;
+                            PC = _regs[inst.Rd];
                             break;
                         case CallJmpRetFunc.RET:
                             //RET (R14) and JMP Rd are the same encoding (doc/RiscA.MD line 126)
-                            PC = Regs[inst.Rd];
+                            PC = _regs[inst.Rd];
                             break;
                         default:
                             PC = (uint)inst.CalcRef((int)address);  //JR, counted in instructions
@@ -259,10 +275,10 @@ namespace RiscA.Core.HW
                         case 1:
                             return new StepResult(address, inst, StopReason.Reti, "RETI: the program ended (stop convention of the model)");
                         case 2:
-                            Regs[inst.Rd] = Regs.EPC;   //MOV Rd, EPC
+                            _regs[inst.Rd] = EPC;   //MOV Rd, EPC
                             break;
                         default:
-                            Regs.EPC = Regs[inst.Rd];   //MOV EPC, Rd
+                            EPC = _regs[inst.Rd];   //MOV EPC, Rd
                             break;
                     }
                     break;
@@ -276,3 +292,4 @@ namespace RiscA.Core.HW
         }
     }
 }
+

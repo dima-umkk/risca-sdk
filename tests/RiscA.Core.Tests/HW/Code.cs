@@ -72,7 +72,7 @@ internal static class Code
         => new Instruction(0).withOpCode(OpCode.CALL_JMP_RET).withFunc2((int)CallJmpRetFunc.CALL_IMM).SetImm(words);
     public static Instruction CallReg(int rd)
         => new Instruction(0).withOpCode(OpCode.CALL_JMP_RET).withFunc2((int)CallJmpRetFunc.CALL_REG).withRd(rd);
-    public static Instruction Ret(int rd = Registers.LinkRegister)
+    public static Instruction Ret(int rd = CPU.LinkRegister)
         => new Instruction(0).withOpCode(OpCode.CALL_JMP_RET).withFunc2((int)CallJmpRetFunc.RET).withRd(rd);
     public static Instruction Jr(int instructions)
         => new Instruction(0).withOpCode(OpCode.CALL_JMP_RET).withFunc2((int)CallJmpRetFunc.JR).SetImm(instructions);

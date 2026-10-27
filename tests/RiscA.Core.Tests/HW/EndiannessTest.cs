@@ -76,7 +76,7 @@ public class EndiannessTest
         ProgramImage.Load(bus, cpu.PC, image);
 
         cpu.Run().Reason.Should().Be(StopReason.Reti);
-        cpu.Regs[0].Should().Be(0x0BAD_F00D);
+        cpu[0].Should().Be(0x0BAD_F00D);
     }
 
     [Fact]
@@ -101,17 +101,17 @@ public class EndiannessTest
 
         cpu.Bus.ReadWord(Ram + 0x400).Should().Be(0xAABB_CCDD);
         //LDB zero extends, so a byte load is exactly one little endian lane of the word
-        cpu.Regs[2].Should().Be(0xDD);
-        cpu.Regs[3].Should().Be(0xAA);
+        cpu[2].Should().Be(0xDD);
+        cpu[3].Should().Be(0xAA);
     }
 
     [Fact]
     public void The_byte_lanes_of_a_device_register_are_little_endian_like_the_bus()
     {
-        var fake = new FakeDevice("fake", 1);
+        var fake = new FakeDevice("fake", 0x0000_0500, 1);
         var bus = Harness.NewBus();
-        bus.AddDevice("fake", 5, fake);
-        uint block = 5 * 0x100;
+        bus.AddDevice(fake);
+        uint block = 0x0000_0500;
 
         bus.WriteByte(block + 3, 0xAA);
         bus.WriteByte(block + 0, 0xDD);
