@@ -142,7 +142,7 @@ namespace RiscA.Core.Asm
             List<Token> tokens;
             try
             {
-                tokens = Tokenizer.tokenizeLine(srcline.Line);
+                tokens = Tokenizer.TokenizeLine(srcline.Line);
             }
             catch (Exception)
             {

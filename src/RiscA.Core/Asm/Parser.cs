@@ -94,7 +94,7 @@ namespace RiscA.Core.Asm
 
         public static ParsedInstruction ParseLine(string line, IReadOnlyDictionary<string, int>? constants)
         {
-            List<Token> tokens = Tokenizer.tokenizeLine(line);
+            List<Token> tokens = Tokenizer.TokenizeLine(line);
             SubstituteConstants(tokens, constants);
             ParsedInstruction parsedInstruction = new ParsedInstruction();
             while (ProcessToken(tokens, parsedInstruction, rules))

@@ -28,7 +28,7 @@
 |---|---|
 | `Asm/Preprocessor.cs` | `Preprocessor` — распознавание `.equ`/`.include` тем же движком правил (полные грамматики директив), склейка `.include`, сбор `.equ`-констант; `.func` здесь не обрабатывается |
 | `Asm/Rule.cs` | `RuleHandler<TCtx>` — общий делегат обработчика правила (им пользуются и парсер, и препроцессор) |
-| `Asm/Token.cs` | `TK` (виды токенов), `Token`, `Tokenizer.tokenizeLine`, `IsReserved` |
+| `Asm/Token.cs` | `TK` (виды токенов), `Token`, `Tokenizer.TokenizeLine`, `IsReserved` |
 | `Asm/Parser.cs` | `ParsedInstruction`, `Parser` — набор правил и обработчиков + `ProcessToken` (движок) |
 | `Asm/Assembler.cs` | `SrcLine`, `Assembler` — адресация, метки, разрешение ссылок |
 | `ISA/Instruction.cs` | `Instruction` (readonly struct над `ushort`), enum'ы полей, `CheckImmLimits`, `SetImm`, `CalcRef`, `ToString` |
