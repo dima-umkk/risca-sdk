@@ -40,8 +40,12 @@
 - No lint/formatter config.
 - **Comments:** code must be self-documenting — keep only comments that state what the code cannot
   say, one line each; never restate a name, a pattern or the grammar. Apply this in every change.
-- **Workflow:** never commit directly to `main` — work on a feature branch and open a
-  pull request; `main` moves only via merged PRs.
+- **Workflow:** day-to-day work goes through `dev`: branch off `dev`, open the pull request
+  against it (`gh pr create --base dev`); a `dev` → `main` pull request is opened manually by
+  the owner, and only that push to `main` triggers a release. Never commit directly to `main`
+  or `dev`.
+- **CI:** `.github/workflows/ci.yml` runs `dotnet test` on pull requests into `dev` and on
+  pushes to `dev`; the release (`.github/workflows/release.yml`) fires only on a push to `main`.
 - All projects: `<ImplicitUsings>enable</ImplicitUsings>`, `<Nullable>enable</Nullable>`.
 - **ISA docs:** `doc/RiscA.MD` is the spec and authority (a copy of the spec from the RTL repo
   `dima-umkk/risca`, with our own fixes applied — stale instruction lists, `func1` label, branch
