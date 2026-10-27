@@ -17,9 +17,6 @@ namespace RiscA.Core.Asm
     /// </summary>
     public class Preprocessor
     {
-        public const string EquDirective = ".equ";
-        public const string IncludeDirective = ".include";
-
         //The commands of this pass are found with the same rule engine the parser runs
         //(Parser.ProcessToken), and the patterns below describe the directive grammar in full:
         //a directive line is only recognized when its whole argument matches a pattern, just
@@ -35,7 +32,7 @@ namespace RiscA.Core.Asm
                 ([ [TK.EQU], [TK.LITERAL], [TK.COMMA], [TK.NUMBER], [TK.EOL] ], DefineEqu),
                 ([ [TK.EQU], [TK.LITERAL], [TK.COMMA], [TK.MINUS, TK.NUMBER], [TK.EOL] ], DefineEqu),
                 //include: "file" | 'file'
-                ([ [TK.INCLUDE], [TK.STRING], [TK.EOL] ], IncludeFile),
+                ([ [TK.INCLUDE], [TK.STRING], [TK.EOL] ], DefineInclude),
 
                 //a known directive that does not open its line is left to the parser, which
                 //reports it as an unexpected token, so these handlers only ever fire at pos 0
@@ -49,16 +46,16 @@ namespace RiscA.Core.Asm
                 ([ [TK.EOL] ], Expressions.Skip<DirectiveMatch>), //empty line
             ];
 
-        //what the directive rules report about a source line: the directive it opens with and
-        //the parts of its argument the patterns bound; Name stays null when the line is
+        //what the directive rules report about a source line: which directive token opens it and
+        //the parts of its argument the patterns bound; Directive stays null when the line is
         //ordinary code or a directive the full pattern did not accept
         private class DirectiveMatch
         {
             public required SrcLine Src { get; init; }
-            public string? Name { get; set; }
-            public Token NameToken;
-            public Token ValueToken;
-            public string FilePath = "";
+            public TK? Directive { get; set; }
+            public Token ConstantName;
+            public Token ConstantValue;
+            public string IncludePath = "";
         }
 
         public List<SrcLine> Lines { get { return lines; } }
@@ -83,13 +80,13 @@ namespace RiscA.Core.Asm
             string full = Path.GetFullPath(filename);
             rootDir = Path.GetDirectoryName(full)!;
             included.Add(full);
-            ExpandFile(full);
+            IncludeFile(full);
             //constants are collected after all includes are spliced in, so the order between
             //a .equ (usually coming from a library at the end of the file) and its uses does not matter
             CollectConstants();
         }
 
-        void ExpandFile(string path)
+        void IncludeFile(string path)
         {
             string[] text;
             try
@@ -105,7 +102,7 @@ namespace RiscA.Core.Asm
             {
                 var srcline = new SrcLine(text[i], i, path);
                 var match = DetectDirective(srcline);
-                if (match.Name is null)
+                if (match.Directive is null)
                 {//ordinary code - including the '.func' line, which the parser recognizes and
                  //the assembler aligns - the parser of the assembler will read it
                     lines.Add(srcline);
@@ -117,21 +114,22 @@ namespace RiscA.Core.Asm
                 srcline.ParsedInstruction = new ParsedInstruction();
                 lines.Add(srcline);
 
-                if (match.Name == IncludeDirective)
+                switch (match.Directive)
                 {
-                    string inc = ResolveInclude(path, match.FilePath, srcline);
-                    if (!included.Contains(inc))
-                    {
-                        included.Add(inc);
-                        ExpandFile(inc);
-                    }
+                    case TK.INCLUDE:
+                        string inc = FindIncludedFile(srcline, match.IncludePath);
+                        //a file already standing in the listing is skipped, breaking include cycles
+                        if (included.Add(inc))
+                            IncludeFile(inc);
+                        break;
+                    case TK.EQU:
+                        equLines.Add((srcline, match.ConstantName, match.ConstantValue));
+                        break;
                 }
-                else if (match.Name == EquDirective)
-                    equLines.Add((srcline, match.NameToken, match.ValueToken));
             }
         }
 
-        //runs the directive rules over the line and reports what they recognized: Name stays
+        //runs the directive rules over the line and reports what they recognized: Directive stays
         //null while the stack still holds tokens, which means the grammar of the directives
         //does not accept this line and it is ordinary code for the parser. A line the tokenizer
         //cannot read is left to the parser as well - it reports the broken syntax with its own
@@ -151,7 +149,7 @@ namespace RiscA.Core.Asm
             while (Parser.ProcessToken(tokens, match, directiveRules))
                 ;
             if (tokens.Count != 0)
-                match.Name = null;
+                match.Directive = null;
             return match;
         }
 
@@ -166,22 +164,23 @@ namespace RiscA.Core.Asm
             if (pos > 0)
                 return null;//a directive only ever opens its line
             Token name = tokens[pos + 1];
-            match.Name = EquDirective;
-            match.NameToken = name;
-            match.ValueToken = tokens[pos + 3];
+            match.Directive = TK.EQU;
+            match.ConstantName = name;
+            match.ConstantValue = tokens[pos + 3];
             tokens.Clear();
             return tokens;
         }
 
-        static List<Token>? IncludeFile(DirectiveMatch match, List<TK[]> pattern, List<Token> tokens, int pos)
+        //'.include "file"' accepted in full: the quoted file name goes to the include
+        static List<Token>? DefineInclude(DirectiveMatch match, List<TK[]> pattern, List<Token> tokens, int pos)
         {
             if (pos > 0)
                 return null;
-            match.Name = IncludeDirective;
-            match.FilePath = tokens[pos + 1].strValue!.Trim();
-            if (match.FilePath.Length == 0)
+            match.Directive = TK.INCLUDE;
+            match.IncludePath = tokens[pos + 1].strValue!.Trim();
+            if (match.IncludePath.Length == 0)
                 throw new Exception(
-                    $"{match.Src.Filename}:{match.Src.Pos + 1}: {IncludeDirective} expects a file name, like '.include \"lib/uart.rasm\"'");
+                    $"{match.Src.Filename}:{match.Src.Pos + 1}: .include expects a file name, like '.include \"lib/uart.rasm\"'");
             tokens.Clear();
             return tokens;
         }
@@ -194,11 +193,11 @@ namespace RiscA.Core.Asm
             if (pos > 0)
                 return null;
             string where = $"{match.Src.Filename}:{match.Src.Pos + 1}";
-            string rest = ArgumentText(match.Src, EquDirective);
+            string rest = ArgumentText(match.Src, ".equ");
             int comma = rest.IndexOf(',');
             string name = (comma < 0 ? rest : rest[..comma]).Trim();
             if (name.Length == 0)
-                throw new Exception($"{where}: {EquDirective} expects a name, like '{EquDirective} NAME, 42'");
+                throw new Exception($"{where}: .equ expects a name, like '.equ NAME, 42'");
             if (!char.IsLetter(name[0]))
                 throw new Exception($"{where}: constant name '{name}' must start with a letter");
             //a reserved word in the name position was never a LITERAL token (the tokenizer
@@ -218,10 +217,10 @@ namespace RiscA.Core.Asm
             if (pos > 0)
                 return null;
             string where = $"{match.Src.Filename}:{match.Src.Pos + 1}";
-            string rest = ArgumentText(match.Src, IncludeDirective);
+            string rest = ArgumentText(match.Src, ".include");
             if (rest.Length == 0)
-                throw new Exception($"{where}: {IncludeDirective} expects a file name, like '.include \"lib/uart.rasm\"'");
-            throw new Exception($"{where}: {IncludeDirective} expects a quoted file name, got '{rest}'");
+                throw new Exception($"{where}: .include expects a file name, like '.include \"lib/uart.rasm\"'");
+            throw new Exception($"{where}: .include expects a quoted file name, got '{rest}'");
         }
 
         //reached only for a '.word' the rules above did not claim, because the engine tries the
@@ -231,8 +230,7 @@ namespace RiscA.Core.Asm
             if (pos > 0)
                 return null;
             throw new Exception(
-                $"{match.Src.Filename}:{match.Src.Pos + 1}: unknown directive '{tokens[pos].TokenString}', " +
-                $"expected {EquDirective} or {IncludeDirective}");
+                $"{match.Src.Filename}:{match.Src.Pos + 1}: unknown directive '{tokens[pos].TokenString}', expected .equ or .include");
         }
 
         //the source text following a directive keyword at the start of the line, comment removed:
@@ -246,13 +244,13 @@ namespace RiscA.Core.Asm
             return start >= src.Line.Length ? "" : StripComment(src.Line[start..].Trim());
         }
 
-        string ResolveInclude(string includingFile, string path, SrcLine srcline)
+        string FindIncludedFile(SrcLine from, string path)
         {
-            string where = $"{srcline.Filename}:{srcline.Pos + 1}";
+            string where = $"{from.Filename}:{from.Pos + 1}";
             //first the directory of the file which does the include, then the compiled file
             //directory, then the current directory - so libraries can include their own files
             var tried = new List<string>();
-            foreach (string? dir in new string?[] { Path.GetDirectoryName(includingFile), rootDir })
+            foreach (string? dir in new string?[] { Path.GetDirectoryName(from.Filename), rootDir })
             {
                 if (string.IsNullOrEmpty(dir))
                     continue;
@@ -266,7 +264,7 @@ namespace RiscA.Core.Asm
             tried.Add(cwd);
             if (File.Exists(cwd))
                 return cwd;
-            throw new Exception($"{where}: {IncludeDirective} file not found '{path}'. tried: {string.Join("; ", tried)}");
+            throw new Exception($"{where}: .include file not found '{path}'. tried: {string.Join("; ", tried)}");
         }
 
         void CollectConstants()
