@@ -73,6 +73,10 @@ namespace RiscA.Core.Asm
                     curAddress += pi.Instructions.Count * 2;
                     if (pi.Label is not null)
                     {
+                        //a label must name exactly one place: silently keeping the last definition
+                        //made every reference to it point there and hid the author's mistake
+                        if (labelMap.TryGetValue(pi.Label, out SrcLine? prev))
+                            throw new Exception($"label '{pi.Label}' is already defined at {prev.Filename}:{prev.Pos + 1}");
                         labelMap[pi.Label] = src[i];
                     }
                 }

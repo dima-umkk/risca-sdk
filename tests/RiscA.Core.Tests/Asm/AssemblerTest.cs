@@ -102,6 +102,19 @@ public class AssemblerTest : IDisposable
         act.Should().Throw<Exception>().WithMessage("*not word aligned*");
     }
 
+    [Fact]
+    public void A_label_may_be_defined_only_once()
+    {
+        //the second definition used to silently replace the first, so every reference pointed
+        //at the last one and the mistake stayed invisible
+        var asm = new Assembler(0);
+        var file = Write("start: nop\nnop\nstart: nop\nreti\n");
+
+        Action act = () => asm.Compile(file);
+
+        act.Should().Throw<Exception>().WithMessage("*label 'start' is already defined at*");
+    }
+
     //Relaxation of the far label references (doc/assembler-architecture.md, 6.4). The expansions
     //change the program size, the addresses move, so the assembler iterates until the layout is stable.
 
