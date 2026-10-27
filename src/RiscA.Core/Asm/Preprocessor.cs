@@ -67,20 +67,12 @@ namespace RiscA.Core.Asm
         HashSet<string> included = new(StringComparer.OrdinalIgnoreCase);
         string rootDir = "";
 
-        //the '.equ' lines met while splicing, in source order: the constants are only defined
-        //after the whole file is spliced in, so a library standing at the end of the file still
-        //provides its constants to the code above the include
-        List<(SrcLine Src, Token Name, Token Value)> equLines = [];
-
         public void Process(string filename)
         {
             string full = Path.GetFullPath(filename);
             rootDir = Path.GetDirectoryName(full)!;
             included.Add(full);
             IncludeFile(full);
-            //constants are collected after all includes are spliced in, so the order between
-            //a .equ (usually coming from a library at the end of the file) and its uses does not matter
-            CollectConstants();
         }
 
         void IncludeFile(string path)
@@ -120,7 +112,7 @@ namespace RiscA.Core.Asm
                             IncludeFile(inc);
                         break;
                     case TK.EQU:
-                        equLines.Add((srcline, match.ConstantName, match.ConstantValue));
+                        DefineConstant(srcline, match.ConstantName, match.ConstantValue);
                         break;
                 }
             }
@@ -214,12 +206,9 @@ namespace RiscA.Core.Asm
             throw new Exception($"{where}: .include file not found '{path}'. tried: {string.Join("; ", tried)}");
         }
 
-        void CollectConstants()
-        {
-            foreach (var (sl, name, value) in equLines)
-                DefineConstant(sl, name, value);
-        }
-
+        //a '.equ' defines its constant the moment the line is spliced in: the value token is
+        //already evaluated by the expression rules, and a use may stand anywhere in the source
+        //because the parser substitutes constants only after this pass has read every file
         void DefineConstant(SrcLine sl, Token name, Token value)
         {
             string where = $"{sl.Filename}:{sl.Pos + 1}";
