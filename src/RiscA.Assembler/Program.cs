@@ -5,6 +5,7 @@ using RiscA.Core.ISA;
 string? filename = null;
 string? binfile = null;
 string? lstfile = null;
+int origin = 0;
 
 for (int i=0; i<args.Length; i++)
 {
@@ -26,6 +27,11 @@ for (int i=0; i<args.Length; i++)
     {
         lstfile = args[i + 1];
     }
+    if (args[i].Equals("-a") && args.Length > i + 1)
+    {
+        //pool dw entries hold absolute addresses, so assemble for the address the image is loaded at
+        origin = args[i + 1].StartsWith("0x") ? (int)Convert.ToInt64(args[i + 1][2..], 16) : int.Parse(args[i + 1]);
+    }
     if (args[i].StartsWith("-v"))
     {
         Verbose.ParserMatches = args[i].Contains('p');
@@ -35,14 +41,14 @@ for (int i=0; i<args.Length; i++)
 
 if(filename == null)
 {
-    Console.WriteLine("Usage: rasm.exe -i filename.rasm -o filename.bin -l filename.lst -vi");
+    Console.WriteLine("Usage: rasm.exe -i filename.rasm [-o filename.bin] [-l filename.lst] [-a origin] [-vi]");
     Console.WriteLine("       rasm.exe --version");
     return -1;
 }
 using BinaryWriter? binwriter = binfile is not null ? new BinaryWriter(File.OpenWrite(binfile)) : null;
 using StreamWriter? lstwriter = lstfile is not null ? new StreamWriter(lstfile) : null;
 
-Assembler asm = new(0);
+Assembler asm = new(origin);
 try
 {
     asm.Compile(filename);

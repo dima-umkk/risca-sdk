@@ -135,4 +135,14 @@ public class UartTest
         console.Text.Should().Be("Hi!\n?k\n");
         cpu.InstructionsRetired.Should().BeGreaterThan(40);
     }
+
+    [Fact]
+    public void The_hello_sample_prints_the_message_and_repeats_the_line_back()
+    {
+        var console = new ScriptConsole().Feed("hey there\n");
+        var (cpu, _) = Harness.Sample("hello.echo.rasm", console);
+
+        cpu.Run(200_000).Reason.Should().Be(StopReason.Reti);
+        console.Text.Should().Be("Hello, world!\nhey there\n");
+    }
 }

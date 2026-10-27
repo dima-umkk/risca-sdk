@@ -1,0 +1,26 @@
+; hello world + echo: prints a message, then echoes console input;
+; Enter (CR from the terminal, LF from a --stdin file) ends the echo and stops the program.
+; build: rasm -i samples/hello.echo.rasm -a 0x10000 -o hello.echo.bin
+; run:   rasim run hello.echo.bin        or   rasim run hello.echo.bin --stdin in.txt
+; after an EOF without Enter the getc wait never ends: --limit stops it (exit code 2)
+    la r1, hello_msg
+    call uart_puts
+
+hello_echo_loop:
+    call uart_getc          ;waits for a byte, returns it in r0
+    mov r1, r0              ;the byte to echo, if it is not a line end
+    sub r0, 13              ;CR, the terminal Enter
+    beqz r0, hello_echo_end
+    add r0, 3               ;now zero again when the byte was LF, the Enter inside a --stdin file
+    beqz r0, hello_echo_end
+    call uart_putc
+    j hello_echo_loop
+
+hello_echo_end:
+    movi r1, 10
+    call uart_putc
+    reti                    ;no interrupt context in the model, so RETI stops the program
+
+hello_msg:
+    db 'Hello, world!', 10, 0
+.include "lib/uart.rasm"

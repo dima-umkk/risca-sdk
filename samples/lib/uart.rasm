@@ -51,9 +51,10 @@ uart_trygetc_empty:
 ; of 28 does not exist: 28 = 12 + 12 + 4 is spelled out as three shifts
 ; no flags and no 3 operand compare in the ISA, so the digit/letter adjustment is
 ; branch free: char = nibble + 55 - 7 * (nibble < 10)
-; clobbers: r0, r1, r2, r3, r4, r5, r7, r8, r9, r10
+; clobbers: r0, r1, r2, r3, r4, r5, r6, r7, r8, r9, r10
 .func uart_puthex:
     mov r2, r1          ;working copy
+    mov r6, r14         ;the link is one r14: a non leaf function saves its own return address
     movi r3, 0x0F       ;nibble mask
     movi r4, 8          ;digits left
     movi r8, 10         ;decimal/letter boundary
@@ -74,4 +75,21 @@ uart_puthex_loop:
     shl r2, 4           ;next nibble
     sub r4, 1
     bnez r4, uart_puthex_loop
+    mov r14, r6
+    ret
+
+; void uart_puts(char* s) - prints the zero terminated db string at the address in r1
+; clobbers: r0, r1, r2, r6, r7
+.func uart_puts:
+    mov r2, r1
+    mov r6, r14         ;the link is one r14: a non leaf function saves its own return address
+uart_puts_next:
+    ldb r0, [r2+0]
+    beqz r0, uart_puts_done
+    mov r1, r0
+    call uart_putc
+    add r2, 1
+    j uart_puts_next
+uart_puts_done:
+    mov r14, r6
     ret
