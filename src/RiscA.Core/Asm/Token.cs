@@ -62,6 +62,15 @@ namespace RiscA.Core.Asm
         DB,
         DW,
         STRING,
+
+        //directive tokens: the tokenizer reads '.name' so that a directive is matched by the same
+        //token patterns the parser uses for instructions. DOTNAME is any '.word' that is not one
+        //of the known directives below; FUNC opens a function entry and is a rule of the parser,
+        //not of the preprocessor - the assembler owns the entry and its alignment
+        DOTNAME,
+        EQU,
+        INCLUDE,
+        FUNC,
     }
 
     public record struct Token(TK TokenType, string TokenString, int TokenPos, int intValue = 0, string? strValue = null);
@@ -135,6 +144,15 @@ namespace RiscA.Core.Asm
             {"dw", TK.DW },
         };
 
+        //directive names are matched as whole tokens, so '.equiv' becomes a DOTNAME the
+        //preprocessor reports instead of silently treating it as code
+        static Dictionary<string, TK> directiveToTokenType = new Dictionary<string, TK>
+        {
+            {".equ", TK.EQU},
+            {".include", TK.INCLUDE},
+            {".func", TK.FUNC},
+        };
+
         private static bool IsHexDigit(char c) =>
             (c >= '0' && c <= '9') ||
             (c >= 'a' && c <= 'f') ||
@@ -161,6 +179,20 @@ namespace RiscA.Core.Asm
                 }
                 if (line[pos] == ';') // comment - skip rest of the line
                     break;
+
+                if (line[pos] == '.' && pos + 1 < line.Length && char.IsLetter(line[pos + 1])) //read a directive
+                {
+                    int endpos = pos + 1;
+                    while (endpos < line.Length && (char.IsLetterOrDigit(line[endpos]) || line[endpos] == '_'))
+                        endpos++;
+                    string directive = line[pos..endpos];
+                    //an unknown '.word' still becomes a token, so the preprocessor can report it
+                    //by name instead of failing on the '.' as an unexpected character
+                    var directiveType = directiveToTokenType.GetValueOrDefault(directive.ToLowerInvariant(), TK.DOTNAME);
+                    tokens.Add(new Token(directiveType, directive, pos));
+                    pos = endpos;
+                    continue;
+                }
 
                 if (char.IsLetter(line[pos])) //read literal
                 {
@@ -305,12 +337,15 @@ namespace RiscA.Core.Asm
                     pos++;
                     continue;
                 }
-                else if (line[pos] == '\'')
+                //both quote styles make a STRING token: '...' is the source of db data,
+                //"..." is what a '.include "file"' argument is written with
+                else if (line[pos] == '\'' || line[pos] == '"')
                 {
+                    char quote = line[pos];
                     int start = pos;
                     pos++;
                     int endpos = pos;
-                    while (endpos < line.Length && line[endpos] != '\'')
+                    while (endpos < line.Length && line[endpos] != quote)
                         endpos++;
                     if (endpos >= line.Length)
                         throw new Exception($"Syntax error {pos}: unterminated string literal");
