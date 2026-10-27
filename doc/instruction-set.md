@@ -354,6 +354,11 @@ ADD  R15, 4
   `[R15 + frame + 0]` .. . Only R8–R13 actually modified by the body are saved and
   restored (none for a leaf — a body without `CALL`); the epilogue restores them, does
   `ADD R15, frame` and `RET`.
+- One epilogue per function, however many exits the source has: each exit is written as
+  `ret x` and expands to `MOV R0, x` plus a jump to that single epilogue (`ret` without an
+  operand skips the `MOV`). The epilogue never restores anything into `R0` — it already
+  holds the exit value. `MOV R0, x` runs before the jump, so the result survives the
+  register restore.
 - Hand-written indirect `CALL rN` never gets stack arguments; the argument-list form
   is static-name sugar only.
 
