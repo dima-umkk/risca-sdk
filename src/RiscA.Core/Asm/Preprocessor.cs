@@ -55,10 +55,10 @@ namespace RiscA.Core.Asm
             public string IncludePath = "";
         }
 
-        public List<SrcLine> Lines { get { return lines; } }
+        public List<SrcLine> Lines => lines;
         List<SrcLine> lines = [];
 
-        public Dictionary<string, int> Constants { get { return constants; } }
+        public Dictionary<string, int> Constants => constants;
         Dictionary<string, int> constants = new(StringComparer.OrdinalIgnoreCase);
         Dictionary<string, SrcLine> definedAt = new(StringComparer.OrdinalIgnoreCase);
 
