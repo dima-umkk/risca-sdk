@@ -18,7 +18,7 @@ namespace RiscA.Core.Asm
     //pass 2 resolves the label fixups and grows the program until all offsets fit (relaxation loop).
     public class Assembler(int address)
     {
-        int curAddress = address;
+        int curAddress;
 
         public List<SrcLine> Src => src;
         List<SrcLine> src = [];
