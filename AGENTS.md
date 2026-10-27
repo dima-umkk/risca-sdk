@@ -38,6 +38,8 @@
   The `release` job writes `notes.md` from `git log` of the commits since the previous release
   (`gh release create --notes-file` / `gh release edit` on a rerun) — release notes are generated, never hand-written.
 - No lint/formatter config.
+- **Comments:** code must be self-documenting — keep only comments that state what the code cannot
+  say, one line each; never restate a name, a pattern or the grammar. Apply this in every change.
 - **Workflow:** never commit directly to `main` — work on a feature branch and open a
   pull request; `main` moves only via merged PRs.
 - All projects: `<ImplicitUsings>enable</ImplicitUsings>`, `<Nullable>enable</Nullable>`.
@@ -53,8 +55,9 @@
 - **Assembler directives** (`src/RiscA.Core/Asm/Preprocessor.cs`, runs before the two assembler passes):
   `.equ NAME, value` (integer constant in decimal/`0x`/`0b` or a number expression, substituted into any
   number position) and `.include "file"` (spliced in, resolved relative
-  to the including file first, each file included once, cycles ignored). Constants are collected in a second
-  pass over the spliced lines, so a library included at the end of a file still provides its constants to the
+  to the including file first, each file included once, cycles ignored). A constant is defined the moment
+  its `.equ` is spliced in, but substitution happens in the parser, after every file has been spliced, so a
+  library included at the end of a file still provides its constants to the
   code above it (the image starts with the program body, so libraries go last — see `samples/uart.echo.rasm` and
   `samples/lib/uart.rasm`). Directive names are tokenized by the tokenizer (`TK.EQU`/`TK.INCLUDE`,
   any other `.name` → `TK.DOTNAME`; `TK.FUNC` is a parser token, not a preprocessor one) and `Preprocessor.directiveRules`
