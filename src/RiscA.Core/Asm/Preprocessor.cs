@@ -34,13 +34,10 @@ namespace RiscA.Core.Asm
                 //include: "file" | 'file'
                 ([ [TK.INCLUDE], [TK.STRING], [TK.EOL] ], DefineInclude),
 
-                //a known directive that does not open its line is left to the parser, which
-                //reports it as an unexpected token, so these handlers only ever fire at pos 0
-                ([ [TK.EQU] ], ReportEquArgument),
-                ([ [TK.INCLUDE] ], ReportIncludeArgument),
-                //any other '.word' opening a line: the rules above had their chance first, so
-                //this one only fires on a directive that does not exist
-                ([ [TK.DOTNAME] ], UnknownDirective),
+                //a directive opening a line that none of the full patterns above consumed:
+                //one message naming the offending token and the two accepted forms - this pass
+                //does not re-parse the argument to guess which half of it is wrong
+                ([ [TK.EQU, TK.INCLUDE, TK.DOTNAME] ], ReportDirectiveError),
 
                 //Skip rules
                 ([ [TK.EOL] ], Expressions.Skip<DirectiveMatch>), //empty line
@@ -178,70 +175,20 @@ namespace RiscA.Core.Asm
                 return null;
             match.Directive = TK.INCLUDE;
             match.IncludePath = tokens[pos + 1].strValue!.Trim();
-            if (match.IncludePath.Length == 0)
-                throw new Exception(
-                    $"{match.Src.Filename}:{match.Src.Pos + 1}: .include expects a file name, like '.include \"lib/uart.rasm\"'");
             tokens.Clear();
             return tokens;
         }
 
-        //reached when a '.equ' line was not consumed by the rules above: keep the old wording
-        //and quote back the source text of the part that is not a number, which the token
-        //patterns alone cannot say
-        static List<Token>? ReportEquArgument(DirectiveMatch match, List<TK[]> pattern, List<Token> tokens, int pos)
+        //reached when a line opening with '.equ', '.include' or any other '.name' was not
+        //consumed in full by the patterns above: one message with the file, the line and the
+        //offending token is enough to find it, the accepted forms are named in the same breath
+        static List<Token>? ReportDirectiveError(DirectiveMatch match, List<TK[]> pattern, List<Token> tokens, int pos)
         {
             if (pos > 0)
-                return null;
-            string where = $"{match.Src.Filename}:{match.Src.Pos + 1}";
-            string rest = ArgumentText(match.Src, ".equ");
-            int comma = rest.IndexOf(',');
-            string name = (comma < 0 ? rest : rest[..comma]).Trim();
-            if (name.Length == 0)
-                throw new Exception($"{where}: .equ expects a name, like '.equ NAME, 42'");
-            if (!char.IsLetter(name[0]))
-                throw new Exception($"{where}: constant name '{name}' must start with a letter");
-            //a reserved word in the name position was never a LITERAL token (the tokenizer
-            //turns it into MOV, REG and friends), so the full pattern above did not accept it
-            if (Tokenizer.IsReserved(name))
-                throw new Exception($"{where}: '{name}' is an instruction or register name, it cannot be a constant");
-            string value = comma < 0 ? "" : rest[(comma + 1)..].Trim();
-            throw new Exception(string.IsNullOrEmpty(value)
-                ? $"{where}: constant '{name}' has no value"
-                : $"{where}: value of constant '{name}' must be a number (decimal, 0x hex or 0b binary), got '{value}'");
-        }
-
-        //reached when an '.include' line was not consumed: the file name did not match the
-        //quoted-string pattern, report the argument exactly as it stands in the source
-        static List<Token>? ReportIncludeArgument(DirectiveMatch match, List<TK[]> pattern, List<Token> tokens, int pos)
-        {
-            if (pos > 0)
-                return null;
-            string where = $"{match.Src.Filename}:{match.Src.Pos + 1}";
-            string rest = ArgumentText(match.Src, ".include");
-            if (rest.Length == 0)
-                throw new Exception($"{where}: .include expects a file name, like '.include \"lib/uart.rasm\"'");
-            throw new Exception($"{where}: .include expects a quoted file name, got '{rest}'");
-        }
-
-        //reached only for a '.word' the rules above did not claim, because the engine tries the
-        //known directives first - the name is reported exactly as it is written in the source
-        static List<Token>? UnknownDirective(DirectiveMatch match, List<TK[]> pattern, List<Token> tokens, int pos)
-        {
-            if (pos > 0)
-                return null;
+                return null;//a directive only ever opens its line, the parser reports the rest
             throw new Exception(
-                $"{match.Src.Filename}:{match.Src.Pos + 1}: unknown directive '{tokens[pos].TokenString}', expected .equ or .include");
-        }
-
-        //the source text following a directive keyword at the start of the line, comment removed:
-        //kept as text because a directive quotes back whatever its grammar did not accept
-        static string ArgumentText(SrcLine src, string keyword)
-        {
-            int at = src.Line.IndexOf(keyword, StringComparison.OrdinalIgnoreCase);
-            if (at < 0)
-                return "";
-            int start = at + keyword.Length;
-            return start >= src.Line.Length ? "" : StripComment(src.Line[start..].Trim());
+                $"{match.Src.Filename}:{match.Src.Pos + 1}: preprocessor: '{tokens[pos].TokenString}' is not accepted here, " +
+                "expected '.equ NAME, value' or '.include \"file\"'");
         }
 
         string FindIncludedFile(SrcLine from, string path)
@@ -283,12 +230,6 @@ namespace RiscA.Core.Asm
             }
             constants[name.TokenString] = value.intValue;
             definedAt[name.TokenString] = sl;
-        }
-
-        static string StripComment(string s)
-        {
-            int c = s.IndexOf(';');
-            return (c < 0 ? s : s[..c]).Trim();
         }
     }
 }

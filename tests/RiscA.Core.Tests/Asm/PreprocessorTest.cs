@@ -201,30 +201,22 @@ namespace RiscA.Core.Tests.Asm
         }
 
         [Theory]
+        [InlineData(".equ A")]
+        [InlineData(".equ A,")]
+        [InlineData(".equ A, label0")]
+        [InlineData(".equ 1A, 5")]
         [InlineData(".equ mov, 1")]
         [InlineData(".equ r1, 5")]
-        [InlineData(".equ nop, 0")]
-        public void InstructionAndRegisterNamesCannotBeConstants(string declaration)
+        [InlineData(".include uart.rasm")]
+        public void BadDirectiveLineIsReported(string declaration)
         {
+            //the grammar accepts each directive whole or reports one message: file, line and
+            //the token the line started with, naming the two accepted forms
             using var src = new TempSource();
             string main = src.Write("main.rasm", declaration + "\n");
 
             Action act = () => Words(main);
-            act.Should().Throw<Exception>().WithMessage("*is an instruction or register name*");
-        }
-
-        [Theory]
-        [InlineData(".equ A", "has no value")]
-        [InlineData(".equ A,", "has no value")]
-        [InlineData(".equ A, label0", "must be a number")]
-        [InlineData(".equ 1A, 5", "must start with a letter")]
-        public void BadConstantDeclarationIsReported(string declaration, string expectedMessage)
-        {
-            using var src = new TempSource();
-            string main = src.Write("main.rasm", declaration + "\n");
-
-            Action act = () => Words(main);
-            act.Should().Throw<Exception>().WithMessage($"*{expectedMessage}*");
+            act.Should().Throw<Exception>().WithMessage($"{main}:1: preprocessor:*");
         }
 
         [Theory]
@@ -278,7 +270,7 @@ namespace RiscA.Core.Tests.Asm
             string main = src.Write("main.rasm", ".equiv A, 1\n");
 
             Action act = () => Words(main);
-            act.Should().Throw<Exception>().WithMessage("*unknown directive '.equiv'*");
+            act.Should().Throw<Exception>().WithMessage($"{main}:1: preprocessor:*'.equiv'*");
         }
 
         [Fact]
@@ -322,7 +314,7 @@ namespace RiscA.Core.Tests.Asm
             string main = src.Write("main.rasm", ".include \"lib/defs.rasm\"\n");
 
             Action act = () => Words(main);
-            act.Should().Throw<Exception>().WithMessage($"{lib}:2: unknown directive '.equiv'*");
+            act.Should().Throw<Exception>().WithMessage($"{lib}:2: preprocessor:*'.equiv'*");
         }
 
         [Fact]
