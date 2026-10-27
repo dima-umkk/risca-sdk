@@ -1,10 +1,10 @@
 #!/usr/bin/env pwsh
 <#
- Нативная (NativeAOT) сборка rasm и rsim.
+ Нативная (NativeAOT) сборка rasm и rasim.
 
    .\build.ps1                    # RIDы текущей платформы (Windows: win-x64, win-arm64)
    .\build.ps1 -Rid win-x64       # только нужные RID
-   .\build.ps1 -Tool rsim         # только нужные утилиты (rasm, rsim)
+   .\build.ps1 -Tool rasim         # только нужные утилиты (rasm, rasim)
    .\build.ps1 -Patch 42          # переопределить Patch (по умолчанию = число коммитов минус PatchBase)
 
  Результат: artifacts/<rid>/<tool>[.exe] и artifacts/<tool>-<version>-<rid>.zip
@@ -12,7 +12,7 @@
 #>
 param(
     [string[]]$Rid,
-    [string[]]$Tool = @('rasm', 'rsim'),
+    [string[]]$Tool = @('rasm', 'rasim'),
     [int]$Patch = -1,
     [string]$OutDir = 'artifacts',
     [switch]$NoZip
@@ -23,7 +23,7 @@ $root = $PSScriptRoot
 # имя утилиты -> проект; имя бинарника совпадает с ключом, его и кладём в архив
 $projects = [ordered]@{
     'rasm' = 'src/RiscA.Assembler/RiscA.Assembler.csproj'
-    'rsim' = 'src/RiscA.Rsim/RiscA.Rsim.csproj'
+    'rasim' = 'src/RiscA.Rasim/RiscA.Rasim.csproj'
 }
 $unknown = @($Tool | Where-Object { $projects.Keys -notcontains $_ })
 if ($unknown.Count -gt 0) { throw "unknown tool: $($unknown -join ', ') (known: $($projects.Keys -join ', '))" }

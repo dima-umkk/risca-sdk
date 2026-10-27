@@ -1,7 +1,7 @@
 ; riscA console library: polling access to UART0.
 ; Memory map and register semantics: doc/emulator-architecture.md, section 5.
 ;
-; Put the include AFTER your own code - the image starts with the program body and rsim
+; Put the include AFTER your own code - the image starts with the program body and rasim
 ; runs it from the first instruction of the image, so library code must not sit in front of it:
 ;     .include "lib/uart.rasm"
 ; Registers of a device are 32 bit words and are accessed with ldw/stw: the offset in

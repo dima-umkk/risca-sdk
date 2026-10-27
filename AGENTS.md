@@ -2,12 +2,10 @@
 
 | Project | Path | Type |
 |---------|------|------|
-| `RiscA.Core` | `src/RiscA.Core/` | Library — `RiscA.Core.ISA` (`Instruction`, `OpCode`, func enums) + `RiscA.Core.Asm` (`Assembler`, `Preprocessor`, `Parser`, `Tokenizer`, `TK`) |
+| `RiscA.Core` | `src/RiscA.Core/` | Library — `RiscA.Core.ISA` (`Instruction`, `OpCode`, func enums) + `RiscA.Core.Asm` (`Assembler`, `Preprocessor`, `Parser`, `Tokenizer`, `TK`) + `RiscA.Core.HW` (`CPU`, `Bus`, `RamRegion`, `DeviceRegion`, `IDevice`, `UartDevice`, `IConsole`, `InputWaitDetector`, `Registers`, `ProgramImage`, `BusFault`, `BusOptions`) |
 | `RiscA.Assembler` | `src/RiscA.Assembler/` | CLI (`Program.cs`) — references Core. Builds as `rasm.exe`. |
-| `RiscA.Core.Tests` | `tests/RiscA.Core.Tests/` | xunit + FluentAssertions — references Core |
-| `RiscA.Machine` | `src/RiscA.Machine/` | Library — emulator core: `AddressSpace`, `RamRegion`, `DeviceRegion`, `IDevice`, `UartDevice`, `IConsole`, `InputWaitDetector`, `Machine`, `Registers`, `ProgramImage`, `BusFault`, `MachineOptions`. References Core. |
-| `RiscA.Rsim` | `src/RiscA.Rsim/` | CLI (`Program.cs`, `AssemblyName=rsim`, `PublishAot`) — one tool, subcommands `run`, `disasm`, `debug` (stub until M2). References Core + Machine. |
-| `RiscA.Machine.Tests` | `tests/RiscA.Machine.Tests/` | xunit + FluentAssertions — references RiscA.Machine |
+| `RiscA.Core.Tests` | `tests/RiscA.Core.Tests/` | xunit + FluentAssertions — references Core; `HW/` holds the emulator tests |
+| `RiscA.Rasim` | `src/RiscA.Rasim/` | CLI (`Program.cs`, `AssemblyName=rasim`, `PublishAot`) — one tool, subcommands `run`, `disasm`, `debug` (stub until M2). References Core. |
 
 ## Essentials
 
@@ -15,11 +13,11 @@
 - **Test:** `dotnet test` — xunit v2, FluentAssertions v8, coverlet collector v6.
   Filter: `dotnet test --filter "FullyQualifiedName~ClassName"`.
 - **Solution:** `RiscASDK.slnx` (new XML solution format, not Visual Studio `.sln`).
-- **Native build:** `RiscA.Assembler` and `RiscA.Rsim` have `<PublishAot>true</PublishAot>` (no runtime
-  dependency, ~2 MB exe each); `RiscA.Core` and `RiscA.Machine` have `<IsAotCompatible>true</IsAotCompatible>`.
+- **Native build:** `RiscA.Assembler` and `RiscA.Rasim` have `<PublishAot>true</PublishAot>` (no runtime
+  dependency, ~2 MB exe each); `RiscA.Core` has `<IsAotCompatible>true</IsAotCompatible>`.
   Use `.\build.ps1` (Windows)
   / `./build.sh` (Linux/macOS) at repo root — they publish AOT binaries into `artifacts/<rid>/`
-  and zip them as `artifacts/rasm-<version>-<rid>.zip` and `artifacts/rsim-<version>-<rid>.zip`. AOT cannot be cross-built between OSes:
+  and zip them as `artifacts/rasm-<version>-<rid>.zip` and `artifacts/rasim-<version>-<rid>.zip`. AOT cannot be cross-built between OSes:
   win-* needs MSVC (win-arm64 also needs the "C++ ARM64 build tools" VS component),
   linux-* needs clang + lld (+ `gcc-aarch64-linux-gnu libc6-dev-arm64-cross binutils-aarch64-linux-gnu`
   for the linux-arm64 cross build), osx-arm64 needs a Mac. The scripts add
@@ -32,7 +30,7 @@
   `git rev-list --count HEAD` minus `PatchBase` (clamped at 0), passed in as `-p:PatchVersion=` by
   `build.ps1`/`build.sh`/CI (param `-Patch` / env `PATCH` overrides; 0 when git is absent). Bump
   `PatchBase` to the current commit count whenever `MinorVersion` changes, so Patch restarts at 0.
-  `rasm --version` prints `rasm <major.minor.patch>`, `rsim --version` prints `rsim <major.minor.patch>`.
+  `rasm --version` prints `rasm <major.minor.patch>`, `rasim --version` prints `rasim <major.minor.patch>`.
 - **CI:** `.github/workflows/release.yml` — push to `main` (or manual run) → version → test →
   build matrix (win-x64, win-arm64, linux-x64, linux-arm64, osx-arm64) → GitHub Release tagged `v<version>`.
   The `release` job writes `notes.md` from `git log` of the commits since the previous release
@@ -99,9 +97,9 @@
 - **Machine design record:** `doc/emulator-architecture.md` — the agreed architecture of the emulator,
   debugger and compiler (one flat address space — every address reachable both from the fetch
   path and from `LDB/LDW/STB/STW`, a single load image, memory map with device blocks of 256 bytes at low
-  addresses, UART0 = 4 registers, no interrupts yet, one `rsim` CLI, symbol map format, milestones M0…M4).
-  The emulator core (milestone M0) and the console uart layer (M1) live in `src/RiscA.Machine`, the
-  `rsim` CLI (M1: `run` and `disasm` work) in `src/RiscA.Rsim`; the debugger and the
+  addresses, UART0 = 4 registers, no interrupts yet, one `rasim` CLI, symbol map format, milestones M0…M4).
+  The emulator core (milestone M0) and the console uart layer (M1) live in `src/RiscA.Core/HW`, the
+  `rasim` CLI (M1: `run` and `disasm` work) in `src/RiscA.Rasim`; the debugger and the
   compiler are not implemented yet. The spec `doc/RiscA.MD` is the authority, `artifacts/rtl/`
   is a read-only upstream reference and must not be edited.
 - **Compiler design record:** `doc/compiler-architecture.md` — the agreed architecture of the
@@ -116,28 +114,26 @@
   `doc/assembler-architecture.md` section 7), so `rcc` consumes the IL's virtual temporaries
   as named operands and stays a near-transliterator.
   The debugger and the compiler are not implemented yet.
-- **Emulator core** (`src/RiscA.Machine`, namespace `RiscA.Machine`, block-style namespaces):
-  one flat `AddressSpace` — `RamRegion` (byte array, little-endian, unaligned words allowed) plus
+- **Emulator core** (`src/RiscA.Core/HW`, namespace `RiscA.Core.HW`, block-style namespaces):
+  one flat `Bus` — `RamRegion` (byte array, little-endian, unaligned words allowed) plus
   `DeviceRegion` wrappers around `IDevice` at `addr[31:16] == 0`, device blocks of 256 bytes
   (`AddDevice(name, block, device)`). `ResetVector` defaults to the start of the RAM
-  (`0x0001_0000`), `MachineOptions.ResetVector` overrides it. `Machine.Step()`/`Run(limit)` retire one
+  (`0x0001_0000`), `BusOptions.ResetVector` overrides it. `CPU.Step()`/`Run(limit)` retire one
   instruction at a time, every device gets exactly one `Tick()` per retired instruction; a `BusFault`
   or an illegal instruction does not retire, the `PC` stays on the faulting instruction and the machine
   halts. `StopReason`: `Running`, `Reti` (stop convention), `IntNotImplemented`, `IllegalInstruction`,
   `BusFault`, `InstructionLimit`, `Halted`. `OnRetire` (`Action<StepResult>`) is the trace hook, called
-  for retired steps only. The library never touches `System.Console` (the `rsim` CLI owns I/O).
-- **Console uart** (`src/RiscA.Machine/UartDevice.cs`): UART0 sits in device block 0 and has four word
+  for retired steps only. The library never touches `System.Console` (the `rasim` CLI owns I/O).
+- **Console uart** (`src/RiscA.Core/HW/UartDevice.cs`): UART0 sits in device block 0 and has four word
   registers — `rx_data` (slot 0, a read pops the receive fifo), `rx_ready` (slot 1), `tx_data` (slot 2, a
   write takes the low byte and is dropped while the transmitter is busy), `tx_ready` (slot 3, `1` when idle).
   The receive fifo is 16 bytes deep, at most one console byte is pulled per retired instruction, and a write
   to `rx_data` injects a byte (scripted input in tests). `txCyclesPerByte` > 0 models the baud rate in
   retired instructions. `InputWaitDetector` catches a program polling an empty `rx_ready` after the input has
   ended (`IConsole.InputEnded`), counted by `UartDevice.EmptyReadyReads`.
-- **rsim CLI** (`src/RiscA.Rsim/Program.cs`): `rsim run <prog.bin>` executes an image (`--origin`, `--reset`,
+- **rasim CLI** (`src/RiscA.Rasim/Program.cs`): `rasim run <prog.bin>` executes an image (`--origin`, `--reset`,
   `--ram-size`, `--stdin <file>`, `--baud`, `--cpu-hz`, `--limit`, `--patience`, `--trace <file>`, `-v`,
-  `--permissive`), `rsim disasm <prog.bin>` prints decoded halfwords, `rsim debug` is an M2 stub. Program
-  bytes go to stdout, every `rsim` message to stderr. Exit codes: 0 `reti`, 1 usage or file error,
+  `--permissive`), `rasim disasm <prog.bin>` prints decoded halfwords, `rasim debug` is an M2 stub. Program
+  bytes go to stdout, every `rasim` message to stderr. Exit codes: 0 `reti`, 1 usage or file error,
   2 instruction limit, 3 bus fault, 4 illegal instruction, 5 `INT`, 6 waiting for input that will not come.
-  Inside `namespace RiscA.Rsim` the cpu class needs `using Machine = RiscA.Machine.Machine;` written inside
-  the namespace body, because the bare name otherwise resolves to the `RiscA.Machine` namespace.
 - **Verbose flags** (`src/RiscA.Core/Verbose.cs`): `Verbose.ParserMatches` (`-vp`) and `Verbose.AssemblerInstructions` (`-vi`) control debug output.
