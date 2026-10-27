@@ -130,3 +130,5 @@ qemu-aarch64-static -L /usr/aarch64-linux-gnu artifacts/linux-arm64/rasm --versi
 Работает: проверено на `main`, релиз публикуется автоматически (все пять RID собираются на GitHub-раннерах, включая `win-arm64` и кросс-сборку `linux-arm64`).
 
 Рабочая ветка — `main`, она же ветка по умолчанию (Settings → Branches → Default branch); `master` удалена.
+
+## Visual Studio Code
