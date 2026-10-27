@@ -198,11 +198,11 @@ internal static class Harness
         return uart;
     }
 
-    //a sample of the repository, assembled as is and started at the reset vector with the console uart
-    public static (CPU cpu, UartDevice uart) Sample(string file, ScriptConsole console, int ramSize = 8192)
+    //a sample of the repository, assembled for the load address and started at the reset vector with the console uart
+    public static (CPU cpu, UartDevice uart) Sample(string file, ScriptConsole console, int ramSize = 8192, int origin = (int)Origin)
     {
         var cpu = new CPU(NewBus(ramSize));
-        ProgramImage.Load(cpu.Bus, cpu.PC, AssembleFile(Path.Combine(RepoRoot, "samples", file)));
+        ProgramImage.Load(cpu.Bus, cpu.PC, AssembleFile(Path.Combine(RepoRoot, "samples", file), origin));
         var uart = cpu.AddUart(console);
         return (cpu, uart);
     }
