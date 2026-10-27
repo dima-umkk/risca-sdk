@@ -33,6 +33,10 @@ namespace RiscA.Core.Asm
 
     public class Parser
     {
+        //R15 is the stack pointer of the ABI (doc/RiscA.MD, "ABI"); push/pop are the only
+        //place of the parser where a register is named by role rather than written out
+        const int StackPointer = 15;
+
         static List<(List<TK[]>, Func<ParsedInstruction, List<TK[]>, List<Token>, int, List<Token>?>)> rules =
             [
                 //Expressions
@@ -56,6 +60,10 @@ namespace RiscA.Core.Asm
                 ([ [TK.LA], [TK.REG], [TK.COMMA], [TK.LITERAL], [TK.EOL] ], ParseLA),
                 ([ [TK.J], [TK.NUMBER, TK.LITERAL], [TK.EOL] ], ParseJ),
                 ([ [TK.J], [TK.NUMBER, TK.LITERAL], [TK.COMMA], [TK.REG], [TK.EOL] ], ParseJ),
+                //push/pop are the PUSH/POP macro of doc/RiscA.MD (ABI, "Stack"): two real
+                //instructions each, the stack pointer R15 is spelled out right here
+                ([ [TK.PUSH], [TK.REG], [TK.EOL] ], ParsePushPop),
+                ([ [TK.POP], [TK.REG], [TK.EOL] ], ParsePushPop),
                 ([ [TK.LDB, TK.LDW], [TK.REG], [TK.COMMA], [TK.LSBRACKET], [TK.REG], [TK.PLUS], [TK.NUMBER], [TK.RSBRACKET], [TK.EOL] ], ParseLD),
                 ([ [TK.STB, TK.STW], [TK.LSBRACKET], [TK.REG], [TK.PLUS], [TK.NUMBER], [TK.RSBRACKET], [TK.COMMA], [TK.REG], [TK.EOL] ], ParseST),
                 ([ [TK.BEQZ, TK.BNEZ], [TK.REG], [TK.COMMA], [TK.NUMBER, TK.LITERAL], [TK.EOL] ], ParseBranch),
@@ -301,6 +309,46 @@ namespace RiscA.Core.Asm
                     fx.Reg = tokens[pos + 3].intValue;
                 parsedInstruction.Instructions.Add(i);
                 parsedInstruction.Fixups.Add(fx);
+            }
+            tokens.RemoveRange(pos, rule.Count);
+            return tokens;
+        }
+
+        //push rN / pop rN: the PUSH/POP macro of doc/RiscA.MD ("Stack") expanded verbatim,
+        //SUB R15, 4 + STW [R15+0], rN and LDW rN, [R15+0] + ADD R15, 4. The stack grows down,
+        //and R15 always comes back to where it started, so a push/pop pair costs a whole
+        //number of halfwords and never shifts the alignment of the code after it
+        static List<Token>? ParsePushPop(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
+        {
+            int rd = tokens[pos + 1].intValue;
+            if (rd == StackPointer)
+                throw new Exception($"'{tokens[pos].TokenString} r{rd}': the stack pointer cannot be pushed or popped.");
+            bool push = tokens[pos].TokenType == TK.PUSH;
+            var moveSp = new Instruction(0)
+                .withOpCode(OpCode.ALU_REG_IMM)
+                .withFunc2(push ? (int)ALUImmFunc.SUB : (int)ALUImmFunc.ADD)
+                .withRd(StackPointer)
+                .withImm7(4);
+            moveSp.CheckImmLimits(4);
+            var access = new Instruction(0)
+                .withOpCode(OpCode.ST_LD)
+                .withFunc21(push ? (int)LdStFunc.ST : (int)LdStFunc.LD)
+                .withFunc22((int)LdStBWFunc.W)
+                .withRs(StackPointer)
+                .withImm3(0)
+                .withRd(rd);
+            access.CheckImmLimits(0);
+            //push moves R15 first and then stores into the new slot, pop loads from the slot
+            //and only then moves R15 back - the order is what makes the two match
+            if (push)
+            {
+                parsedInstruction.Instructions.Add(moveSp);
+                parsedInstruction.Instructions.Add(access);
+            }
+            else
+            {
+                parsedInstruction.Instructions.Add(access);
+                parsedInstruction.Instructions.Add(moveSp);
             }
             tokens.RemoveRange(pos, rule.Count);
             return tokens;

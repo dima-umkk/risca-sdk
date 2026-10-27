@@ -68,6 +68,41 @@ public class RunTest
     }
 
     [Fact]
+    public void Push_and_pop_pseudo_ops_run_the_abi_macro_of_the_spec()
+    {
+        //the same nested call as above, written with the PUSH/POP macro of doc/RiscA.MD spelled
+        //out by the assembler: push rN is SUB R15, 4 + STW [R15+0], rN, pop rN is the reverse
+        var cpu = Harness.Program("""
+            	movi r15, 1
+            	movl r15, 0x10
+            	movl r15, 0        ;r15 = 0x0001_1000, the top of the stack inside the ram
+            	movi r0, 6
+            	call square
+            	reti
+            square:
+            	push r14           ;SUB R15, 4 + STW [R15+0], r14
+            	mul r0, r0
+            	call scale2
+            	pop r14            ;LDW r14, [R15+0] + ADD R15, 4
+            	ret
+            	nop                ;scale2 has to start on a 4 byte boundary for CALL
+            scale2:
+            	movi r1, 2
+            	mul r0, r1
+            	ret
+            """, ramSize: 8192);
+
+        var last = cpu.Run();
+
+        cpu.Regs[0].Should().Be(72);          //2 * 6 * 6
+        cpu.Regs[15].Should().Be(0x0001_1000); //push/pop leave the stack pointer where they found it
+        last.Reason.Should().Be(StopReason.Reti);
+        //the expansion costs exactly the four instructions the hand written version above retires
+        cpu.InstructionsRetired.Should().Be(16);
+        cpu.Space.ReadWord(0x0001_0FFC).Should().Be(Ram + 10); //the saved link is still in the stack frame
+    }
+
+    [Fact]
     public void A_word_constant_after_the_program_is_read_by_ldi()
     {
         //the constant pool idiom of doc/RiscA.MD line 162: constants live behind the last ret or reti

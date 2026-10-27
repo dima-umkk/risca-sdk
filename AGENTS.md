@@ -61,7 +61,10 @@
 - **Assembler design record:** `doc/assembler-architecture.md` — the assembler pipeline
   (Preprocessor → Parser rule engine → addressing + a label-resolution/relaxation loop to a
   fixed point) and the implemented milestone **A1**: pseudo-ops `li/la/j` expanded by parser
-  rules (`mv` deliberately not added — `MOV` is a real instruction), a `List<Fixup { Slot; Label; FixupKind }>` (Branch/Call/Jr/PoolRef/DataAddr; mutable class, also `Target` = pool slot, `Reg` for `j rN`) on `ParsedInstruction` replacing `RefLabel`, per-function constant pools (`dw label ;pool`, marked `IsPool`, keyed by region+label), and the relaxation loop (invert-and-JR
+  rules (`mv` deliberately not added — `MOV` is a real instruction), plus the stack pseudo-ops
+  `push rN`/`pop rN` (the ABI macro of `doc/RiscA.MD` verbatim: `SUB R15,4`+`STW [R15+0],rN` /
+  `LDW rN,[R15+0]`+`ADD R15,4`, order fixed so a pair balances R15; 2 halfwords each, no fixups,
+  no scratch, `push r15`/`pop r15` are errors), a `List<Fixup { Slot; Label; FixupKind }>` (Branch/Call/Jr/PoolRef/DataAddr; mutable class, also `Target` = pool slot, `Reg` for `j rN`) on `ParsedInstruction` replacing `RefLabel`, per-function constant pools (`dw label ;pool`, marked `IsPool`, keyed by region+label), and the relaxation loop (invert-and-JR
   for far branches, `la r7`+`CALL r7` for far calls; for an unreachable pool slot `la` expands
   to an inline mini-pool — `ldi` + `jr` over the data + `dw label` — so every absolute address
   stays in a `dw` entry, which later doubles as the relocation table for load-at-any-address).
