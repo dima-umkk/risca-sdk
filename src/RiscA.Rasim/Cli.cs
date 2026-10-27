@@ -24,36 +24,35 @@ namespace RiscA.Rasim
         }
 
         public const string Usage = """
-            rasim <command> [options] [prog.bin]
+            rasim prog.bin [options]
 
-            commands:
-              run     load an image and run it, with the console uart in device block 0
-              disasm  print an image as an instruction listing
-              debug   the interactive debugger (milestone M2, not implemented yet)
-
-            run options:
+            options:
               prog.bin          the image, the raw little-endian halfwords as `rasm -o` writes them
               --origin <addr>   where the image goes, default 0x00010000 (the start of the ram)
               --reset <addr>    where the cpu starts, default: the origin
               --stdin <file>    read the console input from a file instead of the terminal
+              --repl            stop at the reset vector and open the debugger prompt
               --limit <n>       stop after this many retired instructions, default 10000000
               --trace <file>    write every retired instruction to a file
               -v                print every retired instruction while running
               --permissive      an unmapped access reads as 0 instead of stopping the machine
 
-            disasm options:
-              --origin <addr>   the address of the first halfword, default 0x00010000
+            with a terminal attached rasim stops at the reset vector and waits at the
+            debugger prompt: s [n] step, c continue, b <addr> breakpoint, bl list breakpoints,
+            u <addr> remove breakpoint, r registers, m <addr> [len] memory dump, h help, q quit.
+            redirected input, --stdin or --repl decide the mode when the terminal is not one.
 
             numbers are decimal, 0x... hexadecimal or 0b... binary.
 
-            exit codes of run: 0 RETI, 2 instruction limit, 3 bus fault, 4 illegal instruction,
-            5 INT (interrupts are not implemented). 1 means a usage or a file error.
+            exit codes: 0 program end or quit, 2 instruction limit, 3 bus fault,
+            4 illegal instruction, 5 INT (interrupts are not implemented).
+            1 means a usage or a file error.
             """;
 
         public static void Error(string message)
         {
             //the program writes its own output to stdout, everything rasim has to say goes to stderr,
-            //so `rasim run prog.bin > out.txt` stays clean
+            //so `rasim prog.bin > out.txt` stays clean
             Console.Error.WriteLine($"rasim: {message}");
         }
 

@@ -96,11 +96,11 @@ little-endian). Этот репозиторий — SDK: ассемблер `ras
 dotnet build                                  # .NET 10
 dotnet test                                   # xunit + FluentAssertions
 # сборка и запуск примера:
-artifacts\win-x64\rasm -i samples\uart.echo.rasm -o uart.echo.bin -l uart.echo.lst -vi
-artifacts\win-x64\rasim run uart.echo.bin
+artifacts\win-x64\rasm -i samples\uart.echo.rasm -o uart.echo.bin -l uart.echo.lst -a 0x10000 -vi
+artifacts\win-x64\rasim uart.echo.bin        # терминал -> отладчик, pipe/файл -> автозапуск
 ```
 
 Альтернатива без публикации: `dotnet run --project src/RiscA.Assembler -- -i samples/base.test.rasm`.
-Флаги: `rasm -i <файл> [-o bin] [-l листинг] [-vp] [-vi] [-V]`;
-`rasim run <bin> [--stdin файл] [--trace файл] [--limit N] ...` — коды выхода `rasim` описаны
+Флаги: `rasm -i <файл> [-o bin] [-l листинг] [-a адрес] [-vp] [-vi] [-V]`;
+`rasim <bin> [--origin адрес] [--stdin файл] [--repl] [--trace файл] [--limit N] ...` — коды выхода `rasim` описаны
 в [`../AGENTS.md`](../AGENTS.md) и `emulator-architecture.md`.

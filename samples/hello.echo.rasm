@@ -1,7 +1,7 @@
 ; hello world + echo: prints a message, then echoes console input;
 ; Enter (CR from the terminal, LF from a --stdin file) ends the echo and stops the program.
 ; build: rasm -i samples/hello.echo.rasm -a 0x10000 -o hello.echo.bin
-; run:   rasim run hello.echo.bin        or   rasim run hello.echo.bin --stdin in.txt
+; run:   rasim hello.echo.bin --stdin in.txt     (with a terminal it opens the debugger instead)
 ; after an EOF without Enter the getc wait never ends: --limit stops it (exit code 2)
     la r1, hello_msg
     call uart_puts

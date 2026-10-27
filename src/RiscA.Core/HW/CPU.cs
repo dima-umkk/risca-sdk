@@ -18,6 +18,8 @@ namespace RiscA.Core.HW
         BusFault,
         //Run() reached its instruction limit, a runaway loop stops here
         InstructionLimit,
+        //Run() reached an address with a breakpoint and stopped before executing the instruction there
+        Breakpoint,
         //the machine is stopped, Step() does nothing until Reset()
         Halted,
     }
@@ -47,6 +49,13 @@ namespace RiscA.Core.HW
         public StepResult Last { get; private set; }
         //trace hook: rasim -v and the debugger print every step through it
         public Action<StepResult>? OnRetire { get; set; }
+
+        //the debugger's stop list: Run() stops when PC reaches one of these addresses
+        private readonly HashSet<uint> _breakpoints = new();
+        public IEnumerable<uint> Breakpoints => _breakpoints;
+        public void AddBreakpoint(uint address) => _breakpoints.Add(address);
+        public bool RemoveBreakpoint(uint address) => _breakpoints.Remove(address);
+        public bool HasBreakpoint(uint address) => _breakpoints.Contains(address);
 
         //R0-R15 plus EPC of opcode 7; interrupts are not modelled, EPC is only reachable through MOV
         private readonly uint[] _regs = new uint[16];
@@ -78,12 +87,17 @@ namespace RiscA.Core.HW
             Last = new StepResult(PC, new Instruction(0), StopReason.Running);
         }
 
-        //Run until the program ends, the bus faults or the limit is reached.
+        //Run until the program ends, a breakpoint is reached, the bus faults or the limit is reached.
         public StepResult Run(ulong instructionLimit = ulong.MaxValue)
         {
             var last = Last;
             for (ulong done = 0; !Halted && done < instructionLimit; done++)
+            {
                 last = Step();
+                //checked after the step so continuing from a breakpoint runs past it like gdb does
+                if (!Halted && _breakpoints.Contains(PC))
+                    return new StepResult(PC, new Instruction(0), StopReason.Breakpoint, $"breakpoint at 0x{PC:X8}, the next instruction is not executed");
+            }
             if (!Halted)
                 last = last with { Reason = StopReason.InstructionLimit, Message = $"stopped after {instructionLimit} instructions" };
             return last;
