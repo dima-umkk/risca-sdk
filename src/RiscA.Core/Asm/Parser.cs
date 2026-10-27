@@ -1,11 +1,6 @@
 using RiscA.Core.ISA;
 using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Data;
-using System.Runtime.InteropServices;
-using System.Text;
-using System.Text.RegularExpressions;
 
 namespace RiscA.Core.Asm
 {
@@ -41,12 +36,8 @@ namespace RiscA.Core.Asm
         //table over the same token stack - the preprocessor does exactly that (Preprocessor.directiveRules)
         static List<(List<TK[]> pattern, RuleHandler<ParsedInstruction> handler)> rules =
             [
-                //Expressions
-                ([ [TK.MINUS], [TK.NUMBER] ], ExpNegative),
-                ([ [TK.LPAREN], [TK.NUMBER], [TK.RPAREN] ], ExpParen),
-                ([ [TK.NUMBER], [TK.ASTER, TK.SLASH], [TK.NUMBER] ], ExpMath),
-                ([ [TK.NUMBER], [TK.MINUS], [TK.NUMBER] ], ExpMath),
-                ([ [TK.NUMBER], [TK.PLUS], [TK.NUMBER] ], ExpMath),
+                //Expressions - the shared number rules, see Asm/Expressions.cs
+                .. Expressions.Rules<ParsedInstruction>(),
                 ([ [TK.LITERAL], [TK.COLON] ], ExpLabel),
 
                 //Instructions
@@ -88,7 +79,7 @@ namespace RiscA.Core.Asm
                 ([ [TK.FUNC] ], ParseFuncDirective),
 
                 //Skip rules
-                ([ [TK.EOL] ], Skip), //empty line
+                ([ [TK.EOL] ], Expressions.Skip<ParsedInstruction>), //empty line
             ];
 
         public static ParsedInstruction ParseLine(string line)
@@ -98,7 +89,7 @@ namespace RiscA.Core.Asm
 
         public static ParsedInstruction ParseLine(string line, IReadOnlyDictionary<string, int>? constants)
         {
-            List<Token> tokens = Tokenizer.tokenizeLine(line);
+            List<Token> tokens = Tokenizer.TokenizeLine(line);
             SubstituteConstants(tokens, constants);
             ParsedInstruction parsedInstruction = new ParsedInstruction();
             while (ProcessToken(tokens, parsedInstruction, rules))
@@ -169,12 +160,6 @@ namespace RiscA.Core.Asm
                 }
             }
             return false;
-        }
-
-        static List<Token>? Skip(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
-        {
-            tokens.RemoveRange(pos, rule.Count);
-            return tokens;
         }
 
         //[TK.FUNC]
@@ -409,7 +394,7 @@ namespace RiscA.Core.Asm
 
             var i = new Instruction(0)
                 .withOpCode(OpCode.CALL_JMP_RET)
-                .withFunc2(tokens[pos].TokenType == TK.JR ? 3 : 0)
+                .withFunc2(tokens[pos].TokenType == TK.JR ? (int)CallJmpRetFunc.JR : (int)CallJmpRetFunc.CALL_IMM)
                 .withRd(rd)
                 .withImm7(imm7);
             if (tokens[pos + 1].TokenType == TK.NUMBER)
@@ -425,10 +410,12 @@ namespace RiscA.Core.Asm
         //[TK.CALL, TK.JMP, TK.INT], [TK.REG], [TK.EOL]
         static List<Token>? ParseCallJmpInt(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
         {
+            //CALL_JMP_RET func2s are the CallJmpRetFunc enum; 'int' assembles a different
+            //opcode (INT_RETI) whose func2 has no enum of its own
             var func2 = (tokens[pos].TokenType) switch
             {
-                TK.CALL => 1,
-                TK.JMP => 2,
+                TK.CALL => (int)CallJmpRetFunc.CALL_REG,
+                TK.JMP => (int)CallJmpRetFunc.RET,
                 TK.INT => 0,
                 _ => 0,
             };
@@ -436,7 +423,6 @@ namespace RiscA.Core.Asm
                 .withOpCode(tokens[pos].TokenType == TK.INT ? OpCode.INT_RETI : OpCode.CALL_JMP_RET)
                 .withFunc2(func2)
                 .withRd(tokens[pos + 1].intValue);
-            ;
             parsedInstruction.Instructions.Add(i);
             tokens.RemoveRange(pos, 3);
             return tokens;
@@ -447,7 +433,7 @@ namespace RiscA.Core.Asm
         {
             var i = new Instruction(0)
                 .withOpCode(tokens[pos].TokenType == TK.RETI ? OpCode.INT_RETI : OpCode.CALL_JMP_RET)
-                .withFunc2(tokens[pos].TokenType == TK.RETI ? 1 : 2)
+                .withFunc2(tokens[pos].TokenType == TK.RETI ? 1 : (int)CallJmpRetFunc.RET) //1: INT_RETI func2, no enum
                 .withRd(tokens[pos].TokenType == TK.RETI ? 0 : 14); //R14 link register
             parsedInstruction.Instructions.Add(i);
             tokens.RemoveRange(pos, 2);
@@ -477,43 +463,6 @@ namespace RiscA.Core.Asm
                 .withRs(0);
             parsedInstruction.Instructions.Add(i);
             tokens.RemoveRange(pos, 2);
-            return tokens;
-        }
-
-        static List<Token>? ExpMath(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
-        {
-            int a = tokens[pos + 0].intValue;
-            int b = tokens[pos + 2].intValue;
-            int c = tokens[pos + 1].TokenType switch
-            {
-                TK.PLUS => a + b,
-                TK.MINUS => a - b,
-                TK.ASTER => a * b,
-                TK.SLASH => a / b,
-                _ => throw new Exception($"Unexpected math operation '{tokens[pos + 1].TokenString}' in '{tokens[pos].TokenString} {tokens[pos + 1].TokenString} {tokens[pos + 2].TokenString}'")
-            };
-            tokens.RemoveRange(pos, 3);
-            tokens.Insert(pos, new Token(TK.NUMBER, c.ToString(), pos, c));
-            return tokens;
-        }
-
-        static List<Token>? ExpParen(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
-        {
-            Token number = tokens[pos + 1];
-            tokens.RemoveRange(pos, 3);
-            tokens.Insert(pos, number);
-            return tokens;
-        }
-
-        static List<Token>? ExpNegative(ParsedInstruction parsedInstruction, List<TK[]> rule, List<Token> tokens, int pos)
-        {
-            if (pos > 0 && tokens[pos - 1].TokenType is TK.NUMBER or TK.RPAREN)
-                return null;
-            Token number = tokens[pos + 1];
-            number.intValue = 0 - number.intValue;
-            number.TokenString = number.intValue.ToString();
-            tokens.RemoveRange(pos, 2);
-            tokens.Insert(pos, number);
             return tokens;
         }
 

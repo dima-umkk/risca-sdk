@@ -1,7 +1,6 @@
 using RiscA.Core.ISA;
 using System;
 using System.Collections.Generic;
-using System.Text;
 
 namespace RiscA.Core.Asm
 {
@@ -21,7 +20,7 @@ namespace RiscA.Core.Asm
     {
         int curAddress = address;
 
-        public List<SrcLine> Src { get {  return src; }  }
+        public List<SrcLine> Src => src;
         List<SrcLine> src = [];
 
         Dictionary<string, SrcLine> labelMap = [];
@@ -63,9 +62,7 @@ namespace RiscA.Core.Asm
                     {//a function entry must start on a word boundary: put an alignment NOP in
                      //front of it; the nop line is skipped by the loop, the '.func' line itself
                      //comes next - unparsed, so it goes through this block once more, now aligned
-                        var nops = new SrcLine(";word align", i, src[i].Filename);
-                        nops.ParsedInstruction = new ParsedInstruction();
-                        nops.ParsedInstruction.Instructions.Add(new Instruction(0));
+                        SrcLine nops = MakeAlignNop(src[i]);
                         nops.Address = curAddress;
                         curAddress += 2;
                         src.Insert(i, nops);
@@ -76,6 +73,10 @@ namespace RiscA.Core.Asm
                     curAddress += pi.Instructions.Count * 2;
                     if (pi.Label is not null)
                     {
+                        //a label must name exactly one place: silently keeping the last definition
+                        //made every reference to it point there and hid the author's mistake
+                        if (labelMap.TryGetValue(pi.Label, out SrcLine? prev))
+                            throw new Exception($"label '{pi.Label}' is already defined at {prev.Filename}:{prev.Pos + 1}");
                         labelMap[pi.Label] = src[i];
                     }
                 }
@@ -398,6 +399,16 @@ namespace RiscA.Core.Asm
             return slot;
         }
 
+        //the NOP line that puts a function entry on a word boundary: pass 1 and the relaxation
+        //loop both insert it directly in front of the '.func' line
+        static SrcLine MakeAlignNop(SrcLine funcLine)
+        {
+            var nop = new SrcLine(";word align", funcLine.Pos, funcLine.Filename);
+            nop.ParsedInstruction = new ParsedInstruction();
+            nop.ParsedInstruction.Instructions.Add(new Instruction(0));
+            return nop;
+        }
+
         //a relaxation may grow the code by an odd number of instructions and shift the next '.func'
         //off its word boundary, so re-pad the function entry the same way pass 1 does
         bool AlignFuncs()
@@ -407,10 +418,7 @@ namespace RiscA.Core.Asm
             {
                 if (src[i].ParsedInstruction?.IsFunc == true && (src[i].Address & 0b11) != 0)
                 {
-                    var nop = new SrcLine(";word align", src[i].Pos, src[i].Filename);
-                    nop.ParsedInstruction = new ParsedInstruction();
-                    nop.ParsedInstruction.Instructions.Add(new Instruction(0));
-                    src.Insert(i, nop);
+                    src.Insert(i, MakeAlignNop(src[i]));
                     inserted = true;
                 }
             }

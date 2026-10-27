@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Text;
-using System.Text.RegularExpressions;
 
 namespace RiscA.Core.Asm
 {
@@ -77,80 +75,82 @@ namespace RiscA.Core.Asm
 
     public class Tokenizer
     {
-        static Dictionary<string, (TK, int)> registerToTokenType = new Dictionary<string, (TK, int)>
+        static Dictionary<string, (TK type, int number)> registerToTokenType = new()
         {
-            {"r0", (TK.REG, 0) },
-            {"r1", (TK.REG, 1) },
-            {"r2", (TK.REG, 2) },
-            {"r3", (TK.REG, 3) },
-            {"r4", (TK.REG, 4) },
-            {"r5", (TK.REG, 5) },
-            {"r6", (TK.REG, 6) },
-            {"r7", (TK.REG, 7) },
-            {"r8", (TK.REG, 8) },
-            {"r9", (TK.REG, 9) },
-            {"r10", (TK.REG, 10) },
-            {"r11", (TK.REG, 11) },
-            {"r12", (TK.REG, 12) },
-            {"r13", (TK.REG, 13) },
-            {"r14", (TK.REG, 14) },
-            {"r15", (TK.REG, 15) },
+            ["r0"] = (TK.REG, 0),
+            ["r1"] = (TK.REG, 1),
+            ["r2"] = (TK.REG, 2),
+            ["r3"] = (TK.REG, 3),
+            ["r4"] = (TK.REG, 4),
+            ["r5"] = (TK.REG, 5),
+            ["r6"] = (TK.REG, 6),
+            ["r7"] = (TK.REG, 7),
+            ["r8"] = (TK.REG, 8),
+            ["r9"] = (TK.REG, 9),
+            ["r10"] = (TK.REG, 10),
+            ["r11"] = (TK.REG, 11),
+            ["r12"] = (TK.REG, 12),
+            ["r13"] = (TK.REG, 13),
+            ["r14"] = (TK.REG, 14),
+            ["r15"] = (TK.REG, 15),
         };
-        static Dictionary<string, TK> literalToTokenType = new Dictionary<string, TK> 
+        static Dictionary<string, TK> literalToTokenType = new()
         {
-            {"mov", TK.MOV},
-            {"movi", TK.MOVI},
-            {"movl", TK.MOVL},
+            ["mov"] = TK.MOV,
+            ["movi"] = TK.MOVI,
+            ["movl"] = TK.MOVL,
 
-            {"add", TK.ADD},
-            {"sub", TK.SUB},
-            {"and", TK.AND},
-            {"or", TK.OR},
-            {"xor", TK.XOR},
-            {"not", TK.NOT},
-            {"mul", TK.MUL},
-            {"slt", TK.SLT},
-            {"sltu", TK.SLTU},
-            {"shl", TK.SHL},
-            {"shr", TK.SHR},
+            ["add"] = TK.ADD,
+            ["sub"] = TK.SUB,
+            ["and"] = TK.AND,
+            ["or"] = TK.OR,
+            ["xor"] = TK.XOR,
+            ["not"] = TK.NOT,
+            ["mul"] = TK.MUL,
+            ["slt"] = TK.SLT,
+            ["sltu"] = TK.SLTU,
+            ["shl"] = TK.SHL,
+            ["shr"] = TK.SHR,
 
-            {"ldi", TK.LDI},
-            {"ldb", TK.LDB},
-            {"ldw", TK.LDW},
-            {"stb", TK.STB},
-            {"stw", TK.STW},
+            ["ldi"] = TK.LDI,
+            ["ldb"] = TK.LDB,
+            ["ldw"] = TK.LDW,
+            ["stb"] = TK.STB,
+            ["stw"] = TK.STW,
 
-            {"beqz", TK.BEQZ },
-            {"bnez", TK.BNEZ },
+            ["beqz"] = TK.BEQZ,
+            ["bnez"] = TK.BNEZ,
 
-            {"call", TK.CALL },
-            {"ret", TK.RET },
-            {"jmp", TK.JMP },
-            {"jr", TK.JR },
+            ["call"] = TK.CALL,
+            ["ret"] = TK.RET,
+            ["jmp"] = TK.JMP,
+            ["jr"] = TK.JR,
 
-            {"li", TK.LI },
-            {"la", TK.LA },
-            {"j", TK.J },
+            ["li"] = TK.LI,
+            ["la"] = TK.LA,
+            ["j"] = TK.J,
 
-            {"push", TK.PUSH },
-            {"pop", TK.POP },
+            ["push"] = TK.PUSH,
+            ["pop"] = TK.POP,
 
-            {"int", TK.INT },
-            {"reti", TK.RETI },
-            {"epc", TK.EPC },
+            ["int"] = TK.INT,
+            ["reti"] = TK.RETI,
+            ["epc"] = TK.EPC,
 
-            {"nop", TK.NOP },
-            {"db", TK.DB },
-            {"dw", TK.DW },
+            ["nop"] = TK.NOP,
+            ["db"] = TK.DB,
+            ["dw"] = TK.DW,
         };
 
         //directive names are matched as whole tokens, so '.equiv' becomes a DOTNAME the
         //preprocessor reports instead of silently treating it as code
-        static Dictionary<string, TK> directiveToTokenType = new Dictionary<string, TK>
+        //the '.equ'/'.include' spellings are defined once, in the Preprocessor;
+        //'.func' is not a preprocessor directive, it stays a literal here
+        static Dictionary<string, TK> directiveToTokenType = new()
         {
-            {".equ", TK.EQU},
-            {".include", TK.INCLUDE},
-            {".func", TK.FUNC},
+            [Preprocessor.EquDirective] = TK.EQU,
+            [Preprocessor.IncludeDirective] = TK.INCLUDE,
+            [".func"] = TK.FUNC,
         };
 
         private static bool IsHexDigit(char c) =>
@@ -166,7 +166,7 @@ namespace RiscA.Core.Asm
             return literalToTokenType.ContainsKey(w) || registerToTokenType.ContainsKey(w);
         }
 
-        public static List<Token> tokenizeLine(string line)
+        public static List<Token> TokenizeLine(string line)
         {
             var tokens = new List<Token>();
             int pos = 0;
@@ -205,21 +205,13 @@ namespace RiscA.Core.Asm
                     }
                     string tokenString = line[pos..endpos];
                     //try to check literal tokens
-                    if (literalToTokenType.ContainsKey(tokenString.ToLower()))
-                    {
-                        var tokenType = literalToTokenType[tokenString.ToLower()];
-                        tokens.Add(new Token(tokenType, tokenString, pos));
-                    }
-                    else if(registerToTokenType.ContainsKey(tokenString.ToLower()))
-                    {
-                        var tokenType = registerToTokenType[tokenString.ToLower()].Item1;
-                        var regNumber = registerToTokenType[tokenString.ToLower()].Item2;
-                        tokens.Add(new Token(tokenType, tokenString, pos, regNumber));
-                    }
+                    string lower = tokenString.ToLowerInvariant();
+                    if (literalToTokenType.TryGetValue(lower, out var literalType))
+                        tokens.Add(new Token(literalType, tokenString, pos));
+                    else if (registerToTokenType.TryGetValue(lower, out var register))
+                        tokens.Add(new Token(register.type, tokenString, pos, register.number));
                     else
-                    {
                         tokens.Add(new Token(TK.LITERAL, tokenString, pos));
-                    }
                     pos = endpos;
                     continue;
                 }

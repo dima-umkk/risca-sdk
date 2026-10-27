@@ -1,4 +1,4 @@
-﻿using RiscA.Core.Asm;
+using RiscA.Core.Asm;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -12,7 +12,7 @@ namespace RiscA.Core.Tests.Asm
         [InlineData("\tmovi r1, 123", new string[] { "movi", "r1", ",", "123", "{EOL}" })]
         public void testTokenizerStrings(string line, string[] result)
         {
-            var tokens = Tokenizer.tokenizeLine(line);
+            var tokens = Tokenizer.TokenizeLine(line);
             tokens.Should().NotBeEmpty();
             tokens.Should().HaveCount(result.Length);
             for(int i=0; i<result.Length; i++)
@@ -27,7 +27,7 @@ namespace RiscA.Core.Tests.Asm
         [InlineData("\tadd r0, 123", new TK[] { TK.ADD, TK.REG, TK.COMMA, TK.NUMBER, TK.EOL})]
         public void testTokenizerTokenTypes(string line, TK[] result)
         {
-            var tokens = Tokenizer.tokenizeLine(line);
+            var tokens = Tokenizer.TokenizeLine(line);
             tokens.Should().NotBeEmpty();
             tokens.Should().HaveCount(result.Length);
             for (int i = 0; i < result.Length; i++)
@@ -49,7 +49,7 @@ namespace RiscA.Core.Tests.Asm
         [InlineData("add r0, 0xFFFFFFFF", -1)]
         public void testTokenizerHexBinaryIntValue(string line, int expected)
         {
-            var tokens = Tokenizer.tokenizeLine(line);
+            var tokens = Tokenizer.TokenizeLine(line);
             tokens.Should().NotBeEmpty();
             var numberToken = tokens.First(t => t.TokenType == TK.NUMBER);
             numberToken.intValue.Should().Be(expected);
@@ -60,7 +60,7 @@ namespace RiscA.Core.Tests.Asm
         [InlineData("add r0, 0b1010", new string[] { "add", "r0", ",", "0b1010", "{EOL}" })]
         public void testTokenizerHexBinaryStrings(string line, string[] result)
         {
-            var tokens = Tokenizer.tokenizeLine(line);
+            var tokens = Tokenizer.TokenizeLine(line);
             tokens.Should().NotBeEmpty();
             tokens.Should().HaveCount(result.Length);
             for (int i = 0; i < result.Length; i++)
@@ -76,7 +76,7 @@ namespace RiscA.Core.Tests.Asm
         [InlineData("db 'a b'", new string[] { "db", "'a b'", "{EOL}" })]
         public void testTokenizerStringTokenStrings(string line, string[] result)
         {
-            var tokens = Tokenizer.tokenizeLine(line);
+            var tokens = Tokenizer.TokenizeLine(line);
             tokens.Should().NotBeEmpty();
             tokens.Should().HaveCount(result.Length);
             for (int i = 0; i < result.Length; i++)
@@ -91,7 +91,7 @@ namespace RiscA.Core.Tests.Asm
         [InlineData("db ''", new TK[] { TK.DB, TK.STRING, TK.EOL })]
         public void testTokenizerStringTokenTypes(string line, TK[] result)
         {
-            var tokens = Tokenizer.tokenizeLine(line);
+            var tokens = Tokenizer.TokenizeLine(line);
             tokens.Should().NotBeEmpty();
             tokens.Should().HaveCount(result.Length);
             for (int i = 0; i < result.Length; i++)
@@ -108,7 +108,7 @@ namespace RiscA.Core.Tests.Asm
         [InlineData("db '  '", "  ")]
         public void testTokenizerStringStrValue(string line, string expected)
         {
-            var tokens = Tokenizer.tokenizeLine(line);
+            var tokens = Tokenizer.TokenizeLine(line);
             tokens.Should().NotBeEmpty();
             var stringToken = tokens.First(t => t.TokenType == TK.STRING);
             stringToken.strValue.Should().Be(expected);
@@ -119,7 +119,7 @@ namespace RiscA.Core.Tests.Asm
         [InlineData("db '")]
         public void testTokenizerUnterminatedString(string line)
         {
-            Action act = () => Tokenizer.tokenizeLine(line);
+            Action act = () => Tokenizer.TokenizeLine(line);
             act.Should().Throw<Exception>().WithMessage("*unterminated string literal*");
         }
 
@@ -133,7 +133,7 @@ namespace RiscA.Core.Tests.Asm
         [InlineData(".equiv A, 1", new TK[] { TK.DOTNAME, TK.LITERAL, TK.COMMA, TK.NUMBER, TK.EOL })]
         public void testTokenizerDirectiveTokenTypes(string line, TK[] result)
         {
-            var tokens = Tokenizer.tokenizeLine(line);
+            var tokens = Tokenizer.TokenizeLine(line);
             tokens.Should().NotBeEmpty();
             tokens.Should().HaveCount(result.Length);
             for (int i = 0; i < result.Length; i++)
@@ -148,7 +148,7 @@ namespace RiscA.Core.Tests.Asm
         [InlineData(".macro x", ".macro")]
         public void testTokenizerUnknownDirectiveKeepsItsName(string line, string expected)
         {
-            var tokens = Tokenizer.tokenizeLine(line);
+            var tokens = Tokenizer.TokenizeLine(line);
             var dotName = tokens.First(t => t.TokenType == TK.DOTNAME);
             dotName.TokenString.Should().Be(expected);
         }
@@ -160,7 +160,7 @@ namespace RiscA.Core.Tests.Asm
         [InlineData("db \"hello\"", new TK[] { TK.DB, TK.STRING, TK.EOL })]
         public void testTokenizerDoubleQuotedStringTypes(string line, TK[] result)
         {
-            var tokens = Tokenizer.tokenizeLine(line);
+            var tokens = Tokenizer.TokenizeLine(line);
             tokens.Should().HaveCount(result.Length);
             for (int i = 0; i < result.Length; i++)
                 tokens[i].TokenType.Should().Be(result[i]);
@@ -171,7 +171,7 @@ namespace RiscA.Core.Tests.Asm
         [InlineData("\"\"", "")]
         public void testTokenizerDoubleQuotedStrValue(string line, string expected)
         {
-            var tokens = Tokenizer.tokenizeLine(line);
+            var tokens = Tokenizer.TokenizeLine(line);
             var stringToken = tokens.First(t => t.TokenType == TK.STRING);
             stringToken.strValue.Should().Be(expected);
         }
@@ -181,7 +181,7 @@ namespace RiscA.Core.Tests.Asm
         [InlineData("db \"")]
         public void testTokenizerUnterminatedDoubleQuotedString(string line)
         {
-            Action act = () => Tokenizer.tokenizeLine(line);
+            Action act = () => Tokenizer.TokenizeLine(line);
             act.Should().Throw<Exception>().WithMessage("*unterminated string literal*");
         }
     }
