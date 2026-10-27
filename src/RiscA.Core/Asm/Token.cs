@@ -144,12 +144,13 @@ namespace RiscA.Core.Asm
 
         //directive names are matched as whole tokens, so '.equiv' becomes a DOTNAME the
         //preprocessor reports instead of silently treating it as code
-        //the '.equ'/'.include' spellings are defined once, in the Preprocessor;
+        //the '.equ'/'.include' spellings go here as written; the Preprocessor recognizes the
+        //resulting TK.EQU/TK.INCLUDE tokens by their type, not by name;
         //'.func' is not a preprocessor directive, it stays a literal here
         static Dictionary<string, TK> directiveToTokenType = new()
         {
-            [Preprocessor.EquDirective] = TK.EQU,
-            [Preprocessor.IncludeDirective] = TK.INCLUDE,
+            [".equ"] = TK.EQU,
+            [".include"] = TK.INCLUDE,
             [".func"] = TK.FUNC,
         };
 
