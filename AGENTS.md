@@ -17,7 +17,8 @@
   dependency, ~2 MB exe each); `RiscA.Core` has `<IsAotCompatible>true</IsAotCompatible>`.
   Use `.\build.ps1` (Windows)
   / `./build.sh` (Linux/macOS) at repo root — they publish AOT binaries into `artifacts/<rid>/`
-  and zip them as `artifacts/rasm-<version>-<rid>.zip` and `artifacts/rasim-<version>-<rid>.zip`. AOT cannot be cross-built between OSes:
+  and pack one SDK archive per RID: `artifacts/risca-sdk-<version>-<rid>.zip` — published tools at the
+  archive root plus `doc/` (repo docs) and `lib/` (from `samples/lib`). AOT cannot be cross-built between OSes:
   win-* needs MSVC (win-arm64 also needs the "C++ ARM64 build tools" VS component),
   linux-* needs clang + lld (+ `gcc-aarch64-linux-gnu libc6-dev-arm64-cross binutils-aarch64-linux-gnu`
   for the linux-arm64 cross build), osx-arm64 needs a Mac. The scripts add
