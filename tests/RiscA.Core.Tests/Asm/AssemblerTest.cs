@@ -223,8 +223,9 @@ public class AssemblerTest : IDisposable
         pool.ParsedInstruction.Instructions[1].Raw.Should().Be(0);
 
         //the la line stays a single LDI: the slot is close, its address is reachable with imm9
-        asm.Src[0].ParsedInstruction!.Instructions.Should().HaveCount(1);
-        asm.Src[0].ParsedInstruction.Instructions[0].CalcRef(0).Should().Be(pool.Address);
+        var la = asm.Src[0].ParsedInstruction!;
+        la.Instructions.Should().HaveCount(1);
+        la.Instructions[0].CalcRef(0).Should().Be(pool.Address);
     }
 
     [Fact]
