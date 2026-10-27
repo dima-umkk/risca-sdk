@@ -13,7 +13,7 @@ public class AluTest
 
         cpu.Step().Reason.Should().Be(StopReason.Running);
 
-        return cpu.Regs[target];
+        return cpu[target];
     }
 
     [Theory]
@@ -111,7 +111,7 @@ public class AluTest
 
         cpu.Run(4);
 
-        cpu.Regs[3].Should().Be(0x1234_5678);
+        cpu[3].Should().Be(0x1234_5678);
         cpu.InstructionsRetired.Should().Be(4);
     }
 
@@ -124,8 +124,8 @@ public class AluTest
 
         step.Reason.Should().Be(StopReason.Running);
         step.Instruction.Raw.Should().Be(0);
-        cpu.Regs[0].Should().Be(42);
-        cpu.Regs[15].Should().Be(0x1000);
+        cpu[0].Should().Be(42);
+        cpu[15].Should().Be(0x1000);
         cpu.PC.Should().Be(Harness.Origin + 2);
     }
 

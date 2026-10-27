@@ -3,6 +3,7 @@ using RiscA.Core.ISA;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
 
 using RiscA.Core.HW;
 namespace RiscA.Core.Tests.HW;
@@ -10,110 +11,107 @@ namespace RiscA.Core.Tests.HW;
 //A stand in device that records every access the program makes to it.
 internal class FakeDevice : IDevice
 {
-    public FakeDevice(string name = "fake", int registerCount = 4, uint[]? initial = null)
+    public FakeDevice(string name = "fake", uint bas = 0x0000_1000, int registerCount = 4, uint[]? initial = null)
     {
         Name = name;
+        Base = bas;
         Slots = new uint[registerCount];
-        Size = registerCount * 4;
         if (initial is uint[] seed)
             Array.Copy(seed, Slots, Math.Min(seed.Length, Slots.Length));
     }
 
     public string Name { get; }
-    public int Size { get; }
+    public uint Base { get; }
     //the current value of every register of the device
     public uint[] Slots { get; }
-    //what was written, in the order it was written: (byte offset inside the block, value)
+    //what was written, in the order it was written: (byte offset inside the device, value)
     public List<(int Offset, uint Value)> Written { get; } = [];
     public int Reads { get; private set; }
     public int Writes { get; private set; }
-    public int Ticks { get; private set; }
 
-    public uint ReadWord(int offset)
+    public int Size => Slots.Length * 4;
+
+    public bool Contains(uint address, int length)
+        => address >= Base && address - Base + (uint)length <= (uint)Size;
+
+    private int Offset(uint address, int length)
+    {
+        if (!Contains(address, length))
+            throw new BusFault(address, BusFaultKind.Unmapped,
+                $"{length} byte access at 0x{address:X8} is outside the registers of {Name} (0x{Base:X8}..0x{Base + (uint)Size - 1:X8})");
+        return (int)(address - Base);
+    }
+
+    private int WordOffset(uint address)
+    {
+        int off = Offset(address, 4);
+        if (off % 4 != 0)
+            throw new BusFault(address, BusFaultKind.Unaligned,
+                $"word access at 0x{address:X8} is not aligned to a register of {Name}");
+        return off;
+    }
+
+    public uint ReadWord(uint address)
     {
         Reads++;
-        return Slots[offset / 4];
+        return Slots[WordOffset(address) / 4];
     }
 
-    public void WriteWord(int offset, uint value)
+    public void WriteWord(uint address, uint value)
     {
+        int off = WordOffset(address);
         Writes++;
-        Written.Add((offset, value));
-        Slots[offset / 4] = value;
+        Written.Add((off, value));
+        Slots[off / 4] = value;
     }
 
-    public void Tick() => Ticks++;
-}
-
-//A device that holds instructions: proves that the flat address bus really fetches code from anywhere.
-internal sealed class RomDevice : IDevice
-{
-    private readonly ushort[] _halves;
-
-    public RomDevice(string name, params ushort[] halves)
+    //a byte access is a read modify write of the whole register
+    public byte ReadByte(uint address)
     {
-        Name = name;
-        _halves = halves;
-        //the device answers on whole 32 bit registers, so its size is the number of halfwords rounded up
-        Size = ((halves.Length + 1) / 2) * 4;
+        int off = Offset(address, 1);
+        return (byte)(ReadWord(Base + (uint)(off & ~3)) >> (8 * (off & 3)));
     }
 
-    public string Name { get; }
-    public int Size { get; }
-
-    public uint ReadWord(int offset)
-        => (uint)(_halves[offset / 2] | (_halves.Length > offset / 2 + 1 ? _halves[offset / 2 + 1] << 16 : 0));
-
-    public void WriteWord(int offset, uint value)
-        => throw new InvalidOperationException("a rom device does not accept writes");
-
-    public void Tick()
+    public void WriteByte(uint address, byte value)
     {
+        int off = Offset(address, 1);
+        uint reg = Base + (uint)(off & ~3);
+        uint merged = (ReadWord(reg) & ~(0xFFu << (8 * (off & 3)))) | ((uint)value << (8 * (off & 3)));
+        Writes++;
+        Written.Add(((int)(reg - Base), merged));
+        Slots[(reg - Base) / 4] = merged;
     }
 }
 
-//A console for tests: the input is scripted, the output is collected in memory.
-internal sealed class ScriptConsole : IConsole
+//A console for tests: the input is a scripted stream, the output is collected in memory.
+internal sealed class ScriptConsole
 {
-    private readonly Queue<int> _input = new Queue<int>();
-
-    //the bytes the program sent out, in order
-    public List<int> Output { get; } = [];
-    public bool InputEnded { get; set; }
+    public MemoryStream Input { get; } = new();
+    public MemoryStream Output { get; } = new();
 
     //the output as text
-    public string Text => new string(Output.Select(c => (char)c).ToArray());
+    public string Text => Encoding.UTF8.GetString(Output.ToArray());
 
+    //bytes the program sent out, in order
+    public IReadOnlyList<byte> Bytes => Output.ToArray();
+
+    //the scripted input; feed it before the uart is attached, streams are replayed from their start
     public ScriptConsole Feed(string text)
     {
-        foreach (char c in text)
-            _input.Enqueue(c);
+        foreach (byte b in Encoding.UTF8.GetBytes(text))
+            Input.WriteByte(b);
+        Input.Position = 0;
         return this;
-    }
-
-    //no more input is coming: ReadChar() will keep saying "nothing to read"
-    public ScriptConsole End()
-    {
-        InputEnded = true;
-        return this;
-    }
-
-    public int ReadChar() => _input.Count > 0 ? _input.Dequeue() : -1;
-
-    public void WriteChar(int value) => Output.Add((byte)value);
-
-    public void Flush()
-    {
     }
 }
 
 internal static class Harness
 {
     //the default load and start address: the start of the ram behind the device window (doc/emulator-architecture.md, §4)
-    public const uint Origin = BusOptions.DeviceWindowEnd;
+    public const uint Origin = Ram.DefaultBase;
 
     public static Bus NewBus(int ramSize = 4096, bool permissive = false)
-        => new(new BusOptions { RamSize = ramSize, Permissive = permissive });
+        => new Bus(new BusOptions { Permissive = permissive }).AddDevice(new Ram("ram", Ram.DefaultBase, ramSize));
 
     //a machine with the code loaded where the CPU starts, which is the reset vector of the model
     public static CPU Cpu(params Instruction[] code)
@@ -127,7 +125,7 @@ internal static class Harness
     public static CPU With(this CPU cpu, params (int reg, int value)[] preset)
     {
         foreach (var (reg, value) in preset)
-            cpu.Regs[reg] = unchecked((uint)value);
+            cpu[reg] = unchecked((uint)value);
         return cpu;
     }
 
@@ -192,20 +190,20 @@ internal static class Harness
         }
     }
 
-    //a console uart in device block 0, the address uart_getc and uart_putc of samples/lib/uart.rasm use
-    public static UartDevice AddUart(this CPU cpu, ScriptConsole console, int txCyclesPerByte = 0)
+    //a console uart wired to the streams of a ScriptConsole, the address uart_getc and uart_putc of samples/lib/uart.rasm use
+    public static UartDevice AddUart(this CPU cpu, ScriptConsole console)
     {
-        var uart = new UartDevice(console, txCyclesPerByte);
-        cpu.Bus.AddDevice(UartDevice.DeviceName, UartDevice.Block, uart);
+        var uart = new UartDevice(console.Input, console.Output);
+        cpu.Bus.AddDevice(uart);
         return uart;
     }
 
     //a sample of the repository, assembled as is and started at the reset vector with the console uart
-    public static (CPU cpu, UartDevice uart) Sample(string file, ScriptConsole console, int ramSize = 8192, int txCyclesPerByte = 0)
+    public static (CPU cpu, UartDevice uart) Sample(string file, ScriptConsole console, int ramSize = 8192)
     {
         var cpu = new CPU(NewBus(ramSize));
         ProgramImage.Load(cpu.Bus, cpu.PC, AssembleFile(Path.Combine(RepoRoot, "samples", file)));
-        var uart = cpu.AddUart(console, txCyclesPerByte);
+        var uart = cpu.AddUart(console);
         return (cpu, uart);
     }
 }

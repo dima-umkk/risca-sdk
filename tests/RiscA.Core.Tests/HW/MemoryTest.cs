@@ -17,7 +17,7 @@ public class MemoryTest
         cpu.Step();
         cpu.Step().Reason.Should().Be(StopReason.Running);
 
-        cpu.Regs[4].Should().Be(0x1234_5678);
+        cpu[4].Should().Be(0x1234_5678);
         //Imm(3) is a word offset for word access: slot 3 is byte 0xC, so the word sits at Rs + 0x2C
         cpu.Bus.ReadWord(Ram + 0x2C).Should().Be(0x1234_5678);
     }
@@ -64,7 +64,7 @@ public class MemoryTest
         cpu.Step();
 
         //LDB fills the high bits with zeros, it is not sign extended (doc/README.md, opcode 3)
-        cpu.Regs[1].Should().Be(0xFF);
+        cpu[1].Should().Be(0xFF);
     }
 
     [Fact]
@@ -77,7 +77,7 @@ public class MemoryTest
             Code.Jr(1),              //step onto the patched instruction
             Code.Movi(0, 1),         //0x0102, it becomes 0x0702 = movi r0, 7
             Code.Ret());
-        cpu.Regs[15] = Harness.Origin + 6;
+        cpu[15] = Harness.Origin + 6;
 
         cpu.Step();                 //movi r2, 7
         cpu.Step();                 //stb [r15+1], r2
@@ -87,22 +87,22 @@ public class MemoryTest
         cpu.Step();                 //jr to the patched halfword
         cpu.Step().Reason.Should().Be(StopReason.Running);
 
-        cpu.Regs[0].Should().Be(7); //the patched immediate took effect, it is not 1
+        cpu[0].Should().Be(7); //the patched immediate took effect, it is not 1
     }
 
     [Fact]
     public void A_device_can_be_reached_from_the_data_path_with_a_byte_access()
     {
-        var fake = new FakeDevice("fake", 1, [0xAABBCCDD]);
+        var fake = new FakeDevice("fake", 0x0400, 1, [0xAABBCCDD]);
         var cpu = Harness.Cpu(Code.Ldb(0, 7, 2), Code.Stb(1, 7, 2));
-        cpu.Bus.AddDevice("fake", 4, fake);
+        cpu.Bus.AddDevice(fake);
         cpu.With((1, 0x77), (7, 0x0000_0400));
 
         cpu.Step();
         cpu.Step().Reason.Should().Be(StopReason.Running);
 
         //byte offsets of a device register are the little endian byte lanes of the 32 bit register
-        cpu.Regs[0].Should().Be(0xBB);
+        cpu[0].Should().Be(0xBB);
         fake.Slots[0].Should().Be(0xAA77CCDD);
     }
 
@@ -113,13 +113,13 @@ public class MemoryTest
         var cpu = new CPU(bus);
         //two identical loads, the second one is pointed past the end of the ram
         ProgramImage.Load(bus, Harness.Origin, [Code.Ldw(0, 1, 0), Code.Ldw(0, 1, 0), Code.Ret()]);
-        cpu.Regs[1] = Harness.Origin + 60;
+        cpu[1] = Harness.Origin + 60;
 
         cpu.Step().Reason.Should().Be(StopReason.Running);
-        cpu.Regs[0].Should().Be(0);
+        cpu[0].Should().Be(0);
 
         //the word would span 0x0001003E..0x00010041, one byte past the ram
-        cpu.Regs[1] = Harness.Origin + 62;
+        cpu[1] = Harness.Origin + 62;
         cpu.Step().Reason.Should().Be(StopReason.BusFault);
         cpu.PC.Should().Be(Harness.Origin + 2);
     }
@@ -130,13 +130,13 @@ public class MemoryTest
         //PUSH of doc/RiscA.MD lines 158-160: SUB R15, 4 and STW [R15+0], Rd; POP is LDW and ADD R15, 4
         var cpu = Harness.Cpu(
             Code.Subi(15, 4), Code.Stw(3, 15, 0), Code.Movi(3, 0), Code.Ldw(4, 15, 0), Code.Addi(15, 4), Code.Reti());
-        cpu.Regs[15] = Ram + 0x800;
-        cpu.Regs[3] = 0xDEADBEEF;
+        cpu[15] = Ram + 0x800;
+        cpu[3] = 0xDEADBEEF;
 
         cpu.Run().Reason.Should().Be(StopReason.Reti);
 
-        cpu.Regs[4].Should().Be(0xDEADBEEF);
-        cpu.Regs[15].Should().Be(Ram + 0x800);
+        cpu[4].Should().Be(0xDEADBEEF);
+        cpu[15].Should().Be(Ram + 0x800);
         cpu.Bus.ReadWord(Ram + 0x7FC).Should().Be(0xDEADBEEF);
         cpu.InstructionsRetired.Should().Be(6);
     }
@@ -150,7 +150,7 @@ public class MemoryTest
 
         cpu.Step();
 
-        cpu.Regs[1].Should().Be(0xAABBCCDD);
+        cpu[1].Should().Be(0xAABBCCDD);
     }
 
     [Fact]
@@ -162,7 +162,7 @@ public class MemoryTest
 
         cpu.Step().Reason.Should().Be(StopReason.Running);
 
-        cpu.Regs[0].Should().Be(0xDEADBEEF);
+        cpu[0].Should().Be(0xDEADBEEF);
     }
 
     [Fact]
@@ -176,15 +176,15 @@ public class MemoryTest
         step.Address.Should().Be(Harness.Origin + 6);
         step.Reason.Should().Be(StopReason.Running);
 
-        cpu.Regs[0].Should().Be(0x0000_1234);
+        cpu[0].Should().Be(0x0000_1234);
     }
 
     [Fact]
     public void A_device_register_is_reached_through_the_same_instructions_as_ram()
     {
-        var uart = new FakeDevice("uart0", 4, [0, 1, 0, 1]);
+        var uart = new FakeDevice("uart0", 0, 4, [0, 1, 0, 1]);
         var cpu = Harness.Cpu(Code.Stw(1, 7, 2), Code.Ldw(0, 7, 3));
-        cpu.Bus.AddDevice("uart0", 0, uart);
+        cpu.Bus.AddDevice(uart);
         cpu.With((1, 'A'), (7, 0));
 
         cpu.Step();
@@ -192,20 +192,20 @@ public class MemoryTest
 
         uart.Written.Should().HaveCount(1);
         uart.Written[0].Should().Be((8, (uint)'A'));        //slot 2 of block 0 is byte offset 8
-        cpu.Regs[0].Should().Be(1);                         //slot 3, tx_ready
+        cpu[0].Should().Be(1);                         //slot 3, tx_ready
     }
 
     [Fact]
     public void A_program_that_reaches_past_the_last_register_of_a_device_stops_with_the_access()
     {
-        var uart = new FakeDevice("uart0", 4, [0, 1, 0, 1]);
+        var uart = new FakeDevice("uart0", 0, 4, [0, 1, 0, 1]);
         var cpu = Harness.Cpu(Code.Ldw(0, 7, 7));           //slot 7, the device only has 4 registers
-        cpu.Bus.AddDevice("uart0", 0, uart);
+        cpu.Bus.AddDevice(uart);
         cpu.With((7, 0));
 
         var step = cpu.Step();
 
         step.Reason.Should().Be(StopReason.BusFault);
-        step.Message.Should().Be("device uart0 has 16 bytes of registers, the access at 0x0000001C reaches further");
+        step.Message.Should().Be("unmapped 4 byte read at 0x0000001C, no device answers there");
     }
 }

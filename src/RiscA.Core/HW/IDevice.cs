@@ -2,19 +2,18 @@ using System;
 
 namespace RiscA.Core.HW
 {
-    //A memory mapped device: 32 bit word registers in slots 0..Size/4-1 of its block.
+    //A device on the flat bus: it decodes absolute addresses itself and answers only in bytes and words.
     public interface IDevice
     {
         string Name { get; }
 
-        //number of bytes the device decodes, a multiple of 4 and not larger than the block it sits in
-        int Size { get; }
+        //true when the whole range belongs to this device
+        bool Contains(uint address, int length);
 
-        //offset is a byte offset inside the device block, always aligned to 4 bytes
-        uint ReadWord(int offset);
-        void WriteWord(int offset, uint value);
+        byte ReadByte(uint address);
+        void WriteByte(uint address, byte value);
 
-        //called once per retired instruction, this is where a device does its own work (baud rate, timers)
-        void Tick();
+        uint ReadWord(uint address);
+        void WriteWord(uint address, uint value);
     }
 }
