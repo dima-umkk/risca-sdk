@@ -110,7 +110,7 @@ namespace RiscA.Core.HW
             {
                 raw = Bus.ReadHalfword(address);
             }
-            catch (BusFault f)
+            catch (Bus.Fault f)
             {
                 return Stop(new StepResult(address, new Instruction(0), StopReason.BusFault, $"fetch: {f.Message}"));
             }
@@ -122,7 +122,7 @@ namespace RiscA.Core.HW
             {
                 result = Execute(inst, address);
             }
-            catch (BusFault f)
+            catch (Bus.Fault f)
             {
                 result = new StepResult(address, inst, StopReason.BusFault, f.Message);
             }

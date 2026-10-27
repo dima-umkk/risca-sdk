@@ -29,7 +29,7 @@ namespace RiscA.Core.HW
         private int Index(uint address, int length)
         {
             if (!Contains(address, length))
-                throw new BusFault(address, BusFaultKind.Unmapped,
+                throw new Bus.Fault(address, Bus.FaultKind.Unmapped,
                     $"{length} byte access at 0x{address:X8} is outside {Name} (0x{Base:X8}..0x{Base + (uint)Size - 1:X8})");
             return (int)(address - Base);
         }

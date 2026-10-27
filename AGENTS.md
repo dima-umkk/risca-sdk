@@ -2,7 +2,7 @@
 
 | Project | Path | Type |
 |---------|------|------|
-| `RiscA.Core` | `src/RiscA.Core/` | Library — `RiscA.Core.ISA` (`Instruction`, `OpCode`, func enums) + `RiscA.Core.Asm` (`Assembler`, `Preprocessor`, `Parser`, `Tokenizer`, `TK`) + `RiscA.Core.HW` (`CPU`, `Bus`, `Ram`, `Rom`, `IDevice`, `UartDevice`, `ProgramImage`, `BusFault`, `BusOptions`, `StepResult`, `StopReason`) |
+| `RiscA.Core` | `src/RiscA.Core/` | Library — `RiscA.Core.ISA` (`Instruction`, `OpCode`, func enums) + `RiscA.Core.Asm` (`Assembler`, `Preprocessor`, `Parser`, `Tokenizer`, `TK`) + `RiscA.Core.HW` (`CPU`, `Bus` with nested `Options`/`Fault`/`FaultKind`, `Ram`, `Rom`, `IDevice`, `UartDevice`, `ProgramImage`, `StepResult`, `StopReason`) |
 | `RiscA.Assembler` | `src/RiscA.Assembler/` | CLI (`Program.cs`) — references Core. Builds as `rasm.exe`. |
 | `RiscA.Core.Tests` | `tests/RiscA.Core.Tests/` | xunit + FluentAssertions — references Core; `HW/` holds the emulator tests |
 | `RiscA.Rasim` | `src/RiscA.Rasim/` | CLI (`Program.cs`, `AssemblyName=rasim`, `PublishAot`) — one tool, subcommands `run`, `disasm`, `debug` (stub until M2). References Core. |
@@ -119,14 +119,14 @@
   one flat `Bus` — a list of `IDevice`; everything is a device (`Ram`, `Rom`, `UartDevice`,
   test fakes), each decoding its own absolute addresses: `Name`, `Contains(address, length)`,
   `ReadByte/WriteByte/ReadWord/WriteWord`; `Bus.AddDevice(device)` is fluent, `Bus` composes
-  halfwords from two byte accesses and reports `RegionName`. `BusOptions`: `ResetVector`
+  halfwords from two byte accesses and reports `RegionName`. `Bus.Options`: `ResetVector`
   (null = base of the first `Ram`, `Ram.DefaultBase` = `0x0001_0000`) + `Permissive`. No
   `Tick()` and no device timing — devices advance when the program looks at them.
-  `BusFaultKind`: `Unmapped`, `Unaligned`, `ReadOnly` (a write to `Rom`). `Ram` allows
+  `Bus.FaultKind`: `Unmapped`, `Unaligned`, `ReadOnly` (a write to `Rom`). `Ram` allows
   unaligned words (`DefaultSize` = 64 KiB); `Rom` takes a `byte[]` or a file path. `CPU`
   holds its own 16 registers (`cpu[i]` indexer, `cpu.EPC`, `CPU.ResultRegister/
   LinkRegister/StackPointer`). `CPU.Step()`/`Run(limit)` retire one
-  instruction at a time; a `BusFault`
+  instruction at a time; a `Bus.Fault`
   or an illegal instruction does not retire, the `PC` stays on the faulting instruction and the machine
   halts. `StopReason`: `Running`, `Reti` (stop convention), `IntNotImplemented`, `IllegalInstruction`,
   `BusFault`, `InstructionLimit`, `Halted`. `OnRetire` (`Action<StepResult>`) is the trace hook, called
