@@ -42,7 +42,7 @@ namespace RiscA.Core.Asm
 
             //the region check (doc/assembler-architecture.md, 7.2) before any parsing: named
             //regions must be recognized here, the parser would only see their names as syntax errors
-            Regions.Check(pre.Lines, pre.Constants);
+            var regions = Regions.Check(pre.Lines, pre.Constants);
 
             src.Clear();
             src.AddRange(pre.Lines);
@@ -51,17 +51,16 @@ namespace RiscA.Core.Asm
             anon = 0;
             curAddress = address;
 
+            //named regions become physical code before pass 1 (doc 7.3, milestone A2.2): the
+            //prologue, the rewritten body lines and the single epilogue go through the normal passes
+            Frame.Build(src, regions, pre.Constants);
+
             //1st pass: parse lines
             for (int i = 0; i < src.Count; i++)
             {
                 try
                 {
-                    if (src[i].ParsedInstruction is not null)
-                    {//.equ and .include lines produce no code, so they are not parsed
-                        src[i].Address = curAddress;
-                        continue;
-                    }
-                    var pi = Parser.ParseLine(src[i].Line, pre.Constants);
+                    ParsedInstruction pi = src[i].ParsedInstruction ??= Parser.ParseLine(src[i].Line, pre.Constants);
                     if (pi.IsFunc && (curAddress & 0b0000_0011) != 0)
                     {//a function entry must start on a word boundary: put an alignment NOP in
                      //front of it; the nop line is skipped by the loop, the '.func' line itself
@@ -72,7 +71,6 @@ namespace RiscA.Core.Asm
                         src.Insert(i, nops);
                         continue;
                     }
-                    src[i].ParsedInstruction = pi;
                     src[i].Address = curAddress;
                     curAddress += pi.Instructions.Count * 2;
                     if (pi.Label is not null)
